@@ -8,10 +8,6 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).parent.parent.parent
 load_dotenv(dotenv_path=ROOT_DIR / ".env")
 API_KEY = os.getenv("API_FOOTBALL_KEY", "")
-print(f"[DEBUG] ROOT_DIR: {ROOT_DIR}")
-print(f"[DEBUG] .env existe: {(ROOT_DIR / '.env').exists()}")
-print(f"[DEBUG] Key cargada: {API_KEY[:8]}..." if API_KEY else "[DEBUG] Key: VACÍA")
-
 BASE_URL = os.getenv("API_FOOTBALL_BASE_URL", "https://v3.football.api-sports.io")
 DB_URL = os.getenv("DB_URL", "sqlite:///data/betml.db")
 

@@ -4,6 +4,11 @@ backend/
     api_client.py    ← se conecta a API-Football y trae datos
     test_conexion.py ← prueba que todo funcione
 
+  pipeline/
+    guardador.py     ← guarda los datos de la API en la BD
+    pipeline_dia.py  ← orquesta todo: trae datos Y los guarda
+
+
 Config.py:
 Centraliza toda la configuración del proyecto en un solo lugar. En Spring esto sería tu clase @Configuration. 
 La regla es: ningún otro archivo escribe strings de configuración directo — todos importan desde aquí.
