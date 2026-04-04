@@ -61,6 +61,10 @@ def get(endpoint: str, params: dict = None) -> dict:
         log.error(f"Error de conexión: {e}")
         return {}
 
+    finally:
+        # Pausa de 7 segundos entre cada request.
+        time.sleep(7)
+
 
 """
     trae todos los partidos de una liga especifica

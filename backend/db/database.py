@@ -5,12 +5,6 @@ from backend.pipeline.config import DB_URL
 # El "engine" es la conexión a la base de datos.
 engine = create_engine(
     DB_URL,
-    # echo=True imprime el SQL generado en consola.
-    # Útil para aprender/debuggear, lo ponemos en False
-    # cuando el proyecto esté en producción.
-    echo=false,
-    # Solo necesario para SQLite — permite usar la misma
-    # conexión desde múltiples partes del código.
     connect_args={"check_same_thread": False}
 )
 
