@@ -1,8 +1,8 @@
 import logging
-from backend.pipeline.config import LIGAS
 from backend.pipeline import api_client
 from backend.pipeline.guardador import guardar_partido
 from backend.db.database import crear_tablas, SessionLocal
+from backend.pipeline.config import LIGAS, TEMPORADA_ACTUAL
 
 log = logging.getLogger(__name__)
 
@@ -13,6 +13,71 @@ logging.basicConfig(
 
 TEMPORADA = 2025
 
+def correr_pipeline_fecha(fecha: str):
+    """
+    Igual que correr_pipeline() pero para una fecha específica.
+    Se usa para pre-cargar los fixtures del día siguiente.
+    """
+    log.info(f"Trayendo fixtures para fecha: {fecha}")
+
+    crear_tablas()
+    poblar_ligas()
+
+    db = SessionLocal()
+    total_guardados = 0
+
+    try:
+        data = api_client.get("/fixtures", params={
+            "date":     fecha,
+            "timezone": "America/Guayaquil"
+        })
+
+        todos = data.get("response", [])
+        nuestras_ligas = set(LIGAS.values())
+        filtrados = [p for p in todos if p["league"]["id"] in nuestras_ligas]
+
+        log.info(f"Fixtures encontrados para {fecha}: {len(filtrados)}")
+
+        for fixture in filtrados:
+            liga_id = fixture["league"]["id"]
+            guardar_partido(db, fixture, liga_id, TEMPORADA_ACTUAL.get(
+                next(k for k, v in LIGAS.items() if v == liga_id), 2025
+            ))
+            total_guardados += 1
+
+        log.info(f"Fixtures guardados: {total_guardados}")
+
+    except Exception as e:
+        log.error(f"Error: {e}")
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def poblar_ligas():
+    """
+    Llena la tabla ligas con los datos del diccionario LIGAS.
+    Solo inserta si la liga no existe ya — no duplica.
+    """
+    from backend.db.modelos import Liga
+    db = SessionLocal()
+    try:
+        for nombre, liga_id in LIGAS.items():
+            existe = db.get(Liga, liga_id)
+            if existe is None:
+                liga = Liga(
+                    id       = liga_id,
+                    nombre   = nombre,
+                    temporada= TEMPORADA,
+                    activa   = True
+                )
+                db.add(liga)
+                log.info(f"Liga agregada: {nombre}")
+        db.commit()
+        log.info("Tabla ligas poblada OK")
+    finally:
+        db.close()
 
 def correr_pipeline():
     log.info("=" * 50)
@@ -21,6 +86,9 @@ def correr_pipeline():
 
     crear_tablas()
     log.info("Tablas creadas/Ok")
+
+    poblar_ligas()
+
 
     db = SessionLocal()
     total_guardados = 0

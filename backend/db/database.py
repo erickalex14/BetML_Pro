@@ -1,10 +1,17 @@
 from sqlalchemy import create_engine, false
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from backend.pipeline.config import DB_URL
+from pathlib import Path
+from backend.pipeline.config import DB_URL, ROOT_DIR
+
+DATA_DIR = ROOT_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DB_PATH = DATA_DIR / "betml.db"
+DB_URL_ABSOLUTA = f"sqlite:///{DB_PATH}"
 
 # El "engine" es la conexión a la base de datos.
 engine = create_engine(
-    DB_URL,
+    DB_URL_ABSOLUTA,
     connect_args={"check_same_thread": False}
 )
 

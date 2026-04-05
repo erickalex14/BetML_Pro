@@ -19,3 +19,15 @@ Todos los demás módulos del proyecto le piden datos a este — nunca hacen pet
 
 test_conection.py
 Prueba que todo funciona antes de construir el resto. Es tu primer test de integración real.
+
+Arquitectura de los datos
+23:55  → pipeline_dia.py
+         Trae TODOS los partidos del día con estado final
+         1 request → guarda resultados en BD
+         ─────────────────────────────────────────────
+00:30  → job_estadisticas.py
+         Los partidos ya están FT en la BD
+         Trae stats de hasta 20 partidos por ejecución
+         Si hay más de 20, el job de mañana sigue
+         ─────────────────────────────────────────────
+Diario → modelo se nutre solo con datos nuevos cada día

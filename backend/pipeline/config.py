@@ -38,5 +38,24 @@ LIGAS = {
     "Saudi Pro League":    307,
 }
 
-
+# Temporada actual por liga — varía según competición
+TEMPORADA_ACTUAL = {
+    "Premier League":    2025,
+    "La Liga":           2025,
+    "Serie A":           2025,
+    "Bundesliga":        2025,
+    "Ligue 1":           2025,
+    "Champions League":  2025,
+    "Europa League":     2025,
+    "Conference League": 2025,
+    "Copa Libertadores": 2026,
+    "Copa Sudamericana": 2026,
+    "Liga MX":           2025,
+    "MLS":               2025,
+    "Brasileirao":       2025,
+    "Liga Argentina":    2025,
+    "LigaPro Ecuador":   2025,
+    "Eredivisie":        2025,
+    "Saudi Pro League":  2025,
+}
 
