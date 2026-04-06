@@ -9,10 +9,12 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Máximo de requests que este job puede gastar por ejecución.
-# Con 20 requests podemos cubrir todos los partidos de un día
-# normal sin comprometer el límite diario.
-MAX_REQUESTS = 20
+MAX_REQUESTS = 80
+
+# Solo traemos stats de temporadas actuales
+# Plan free permite hasta 2024, los partidos de hoy
+# caen en 2024 según la configuración actual
+TEMPORADAS_CON_STATS = [2024, 2025, 2026]
 
 
 def correr_job_estadisticas():
@@ -25,18 +27,12 @@ def correr_job_estadisticas():
     stats_guardadas = 0
 
     try:
-        # Busca partidos terminados (FT) que NO tienen
-        # estadísticas guardadas todavía.
-        # outerjoin + filter None = LEFT JOIN WHERE NULL
-        # Es el equivalente SQL de:
-        # SELECT p.* FROM partidos p
-        # LEFT JOIN estadisticas_partido e ON p.id = e.partido_id
-        # WHERE p.estado = 'FT' AND e.id IS NULL
         partidos_pendientes = (
             db.query(Partido)
             .outerjoin(EstadisticaPartido)
             .filter(
                 Partido.estado == "FT",
+                Partido.temporada.in_(TEMPORADAS_CON_STATS),  # ← filtro clave
                 EstadisticaPartido.id == None
             )
             .order_by(Partido.fecha.desc())  # más recientes primero
@@ -44,7 +40,7 @@ def correr_job_estadisticas():
         )
 
         total = len(partidos_pendientes)
-        log.info(f"Partidos FT sin estadísticas: {total}")
+        log.info(f"Partidos FT sin stats (temporada actual): {total}")
 
         if total == 0:
             log.info("Nada que procesar — todo al día")
@@ -52,7 +48,6 @@ def correr_job_estadisticas():
 
         for partido in partidos_pendientes:
 
-            # Control de presupuesto — para si llegamos al límite
             if requests_usados >= MAX_REQUESTS:
                 restantes = total - stats_guardadas
                 log.warning(
@@ -61,10 +56,11 @@ def correr_job_estadisticas():
                 )
                 break
 
-            local     = partido.equipo_local_id
-            visitante = partido.equipo_visit_id
-            log.info(f"Procesando partido ID {partido.id} "
-                     f"({local} vs {visitante})")
+            log.info(
+                f"Procesando partido ID {partido.id} "
+                f"| temporada {partido.temporada} "
+                f"| {partido.equipo_local_id} vs {partido.equipo_visit_id}"
+            )
 
             data = api_client.get(
                 "/fixtures/statistics",
@@ -75,53 +71,42 @@ def correr_job_estadisticas():
             stats_raw = data.get("response", [])
 
             if len(stats_raw) < 2:
-                log.warning(f"Sin stats disponibles para {partido.id} — saltando")
+                log.warning(f"Sin stats para {partido.id} — saltando")
                 continue
 
             estadistica = _parsear_estadisticas(partido.id, stats_raw)
-
             db.add(estadistica)
             db.commit()
             stats_guardadas += 1
-            log.info(f"Stats guardadas ({stats_guardadas}/{total}) "
-                     f"— requests usados: {requests_usados}")
+
+            log.info(
+                f"Stats guardadas ({stats_guardadas}/{total}) "
+                f"— requests usados: {requests_usados}/{MAX_REQUESTS}"
+            )
 
     except Exception as e:
         log.error(f"Error en job estadísticas: {e}")
         db.rollback()
         raise
+
     finally:
         db.close()
-        log.info(f"Job finalizado — "
-                 f"{stats_guardadas} stats guardadas, "
-                 f"{requests_usados} requests usados")
+        log.info(
+            f"Job finalizado — "
+            f"{stats_guardadas} stats guardadas, "
+            f"{requests_usados} requests usados"
+        )
 
 
 def _parsear_estadisticas(partido_id: int, stats_raw: list) -> EstadisticaPartido:
-    """
-    Convierte la respuesta cruda de la API en un objeto
-    EstadisticaPartido listo para guardar en la BD.
-
-    stats_raw[0] = estadísticas del equipo local
-    stats_raw[1] = estadísticas del equipo visitante
-    """
-
     def extraer(team_data: dict, nombre_stat: str) -> float:
-        """
-        Busca un stat específico dentro de la lista de estadísticas
-        del equipo y retorna su valor numérico limpio.
-        """
         for stat in team_data.get("statistics", []):
             if stat["type"] == nombre_stat:
                 valor = stat["value"]
-
                 if valor is None:
                     return 0.0
-
-                # Algunos valores vienen como string "45%"
                 if isinstance(valor, str):
                     return float(valor.replace("%", "").strip())
-
                 return float(valor)
         return 0.0
 
