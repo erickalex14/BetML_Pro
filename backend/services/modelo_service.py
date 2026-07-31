@@ -12,10 +12,11 @@ class ModeloService:
     """
     Gestiona el ciclo de vida del modelo ML
     """
+
     def __init__(self):
         self.settings = get_settings()
-        self.model = None
-        self.cargar_modelo()
+        self._modelo = None
+        self._cargar_modelo()  # ← con guión bajo
 
 
     #Cargar el modelo

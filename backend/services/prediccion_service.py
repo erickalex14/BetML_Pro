@@ -8,8 +8,7 @@ from backend.repositories.prediccion_repo import PrediccionRepository
 from backend.services.modelo_service import get_modelo_service
 from backend.core.config import get_settings
 from backend.features.calculador import construir_features_partido
-from backend.models.entrenador import FEATURES
-
+from backend.features.dataset import FEATURES_ML as FEATURES
 log = logging.getLogger(__name__)
 
 class PrediccionService:
