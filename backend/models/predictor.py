@@ -2,9 +2,10 @@ import logging
 import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
-from backend.models.entrenador import cargar_modelo, FEATURES
 from backend.features.calculador import construir_features_partido
 from backend.db.modelos import Partido
+from backend.models.entrenador import cargar_modelo
+from backend.features.dataset import FEATURES_ML as FEATURES
 
 log = logging.getLogger(__name__)
 

@@ -1,0 +1,34 @@
+name: frontend
+description: BetML Pro — Motor de pronósticos deportivos con ML
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # HTTP requests a la API FastAPI
+  http: ^1.2.0
+  
+  # Gestión de estado
+  provider: ^6.1.2
+  
+  # Navegación
+  go_router: ^14.0.0
+  
+  # UI components
+  google_fonts: ^6.2.1
+  
+  # Iconos
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

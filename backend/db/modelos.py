@@ -3,7 +3,7 @@ from sqlalchemy import (
     Column, Integer, String, Float,
     DateTime, Boolean, ForeignKey, Text
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from backend.db.database import Base
 
 
@@ -115,3 +115,127 @@ class Prediccion(Base):
 
     def __repr__(self):
         return f"<Prediccion {self.mercado} — {self.prediccion}>"
+
+
+class EstadisticaSofascore(Base):
+    """
+    Stats avanzadas del partido desde Sofascore.
+    xG, presiones, duelos, pases progresivos —
+    """
+    __tablename__ = "estadisticas_sofascores"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    partido_id = Column(Integer, ForeignKey("partidos.id"), unique=True)
+
+    #Expected goals
+    xg_local = Column(Float, nullable=True)
+    xg_visitante = Column(Float, nullable=True)
+
+    #Tiros
+    tiros_local = Column(Integer, nullable=True)
+    tiros_visitante = Column(Integer, nullable=True)
+    tiros_arco_local = Column(Integer, nullable=True)
+    tiros_arco_visitante = Column(Integer, nullable=True)
+    tiros_bloq_local = Column(Integer, nullable=True)
+    tiros_bloq_visitante = Column(Integer, nullable=True)
+
+    #posesion
+    posesion_local = Column(Float, nullable=True)
+    posesion_visitante = Column(Float, nullable=True)
+
+    #pases
+    pases_local = Column(Integer, nullable=True)
+    pases_visitante = Column(Integer, nullable=True)
+    precision_pases_local = Column(Float, nullable=True)
+    precision_pases_visitante = Column(Float, nullable=True)
+    pases_clave_local = Column(Integer, nullable=True)
+    pases_clave_visitante = Column(Integer, nullable=True)
+
+    #Corners y faltas
+    corners_local = Column(Integer, nullable=True)
+    corners_visitante = Column(Integer, nullable=True)
+    faltas_local = Column(Integer, nullable=True)
+    faltas_visitante = Column(Integer, nullable=True)
+
+    #presiones
+    presiones_local = Column(Integer, nullable=True)
+    presiones_visitante = Column(Integer, nullable=True)
+
+    #Duelos
+    duelos_local = Column(Integer, nullable=True)
+    duelos_visitante = Column(Integer, nullable=True)
+    duelos_aereos_local = Column(Integer, nullable=True)
+    duelos_aereos_visitante = Column(Integer, nullable=True)
+
+    #Tarjetas
+    amarillas_local = Column(Integer, nullable=True)
+    amarillas_visitante = Column(Integer, nullable=True)
+    rojas_local = Column(Integer, nullable=True)
+    rojas_visitante = Column(Integer, nullable=True)
+
+    #offsides
+    fuera_juego_local = Column(Integer, nullable=True)
+    fuera_juego_visitante = Column(Integer, nullable=True)
+
+    #ID interno para refs cruzadas
+    sofascore_id = Column(Integer, nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+    partido = relationship("Partido", backref=backref("stats_sofascore", uselist=False))
+
+    def __repr__(self):
+        return f"<EstadisticaSofascore {self.partido_id}>"
+
+
+class EstadisticaJugador(Base):
+    __tablename__ = "estadisticas_jugador"
+
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    partido_id           = Column(Integer, ForeignKey("partidos.id"))
+    equipo_id            = Column(Integer, ForeignKey("equipos.id"))
+    sofascore_jugador_id = Column(Integer, nullable=False)
+    nombre               = Column(String(100), nullable=False)
+    posicion             = Column(String(20), nullable=True)
+    es_local             = Column(Boolean, nullable=False)
+    titular              = Column(Boolean, default=False)
+
+    # Rating
+    rating               = Column(Float, nullable=True)
+
+    # Participación
+    minutos_jugados      = Column(Integer, nullable=True)
+
+    # Ataque
+    goles                = Column(Integer, nullable=True)
+    asistencias          = Column(Integer, nullable=True)
+    xg_individual        = Column(Float, nullable=True)
+    tiros                = Column(Integer, nullable=True)
+    tiros_arco           = Column(Integer, nullable=True)
+
+    # Creación
+    pases_clave          = Column(Integer, nullable=True)
+    grandes_ocasiones    = Column(Integer, nullable=True)
+    regates_completados  = Column(Integer, nullable=True)
+
+    # Pases
+    pases_completados    = Column(Integer, nullable=True)
+    precision_pases      = Column(Float, nullable=True)
+
+    # Defensa
+    duelos_ganados       = Column(Integer, nullable=True)
+    duelos_aereos_gan    = Column(Integer, nullable=True)
+    despejes             = Column(Integer, nullable=True)
+    intercepciones       = Column(Integer, nullable=True)
+
+    # Disciplina
+    amarilla             = Column(Boolean, default=False)
+    roja                 = Column(Boolean, default=False)
+
+    creado_en            = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<EstadisticaJugador {self.nombre} partido={self.partido_id}>"
+
+
+
+

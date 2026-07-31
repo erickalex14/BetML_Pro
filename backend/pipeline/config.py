@@ -33,7 +33,7 @@ LIGAS = {
     "MLS":                 253,
     "Brasileirao":         71,
     "Liga Argentina":      128,
-    "LigaPro Ecuador":     314,
+    "LigaPro Ecuador":     242,
     "Eredivisie":          88,
     "Saudi Pro League":    307,
 }

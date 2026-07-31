@@ -1,0 +1,325 @@
+import time
+import logging
+import json
+from typing import Optional
+from playwright.sync_api import sync_playwright, Page, Browser
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+log = logging.getLogger(__name__)
+
+BASE_URL = "https://api.sofascore.com/api/v1"
+
+# IDs correctos de ligas — Liga MX corregido
+LIGAS_SOFASCORE = {
+    "Premier League":       17,
+    "La Liga":              8,
+    "Serie A":              23,
+    "Bundesliga":           35,
+    "Ligue 1":              34,
+    "Champions League":     7,
+    "Europa League":        679,
+    "Conference League":    17015,
+    "Copa Libertadores":    384,
+    "Copa Sudamericana":    480,
+    "Liga MX Apertura":     11621,  # ← separado en dos torneos
+    "Liga MX Clausura":     11620,
+    "MLS":                  242,
+    "Brasileirao":          325,
+    "Liga Argentina":       155,
+    "LigaPro Ecuador":      240,
+    "Eredivisie":           37,
+    "Saudi Pro League":     955,
+}
+
+# IDs de temporadas por liga — extraídos directamente de Sofascore
+# Formato: {nombre_liga: {año_label: sofascore_season_id}}
+TEMPORADAS_SOFASCORE = {
+    "Premier League": {
+        "23/24": 52186,
+        "24/25": 61627,
+        "25/26": 76986,
+    },
+    "La Liga": {
+        "23/24": 52376,
+        "24/25": 61643,
+        "25/26": 77559,
+    },
+    "Serie A": {
+        "23/24": 52760,
+        "24/25": 63515,
+        "25/26": 76457,
+    },
+    "Bundesliga": {
+        "23/24": 52608,
+        "24/25": 63516,
+        "25/26": 77333,
+    },
+    "Ligue 1": {
+        "23/24": 52571,
+        "24/25": 61736,
+        "25/26": 77356,
+    },
+    "Champions League": {
+        "23/24": 52162,
+        "24/25": 61644,
+        "25/26": 76953,
+    },
+    "Europa League": {
+        "23/24": 53654,
+        "24/25": 61645,
+        "25/26": 76984,
+    },
+    "Conference League": {
+        "23/24": 52327,
+        "24/25": 61648,
+        "25/26": 76960,
+    },
+    "Copa Libertadores": {
+        "2023": 47974,
+        "2024": 57296,
+        "2025": 70083,
+    },
+    "Copa Sudamericana": {
+        "2023": 47968,
+        "2024": 57297,
+        "2025": 70070,
+    },
+    "Liga MX": {
+        "2023": None,   # buscar ID correcto
+        "2024": None,
+    },
+    "MLS": {
+        "2023": 47955,
+        "2024": 57317,
+        "2025": 70158,
+    },
+    "Brasileirao": {
+        "2023": 48982,
+        "2024": 58766,
+        "2025": 72034,
+    },
+    "Liga Argentina": {
+        "2024": 57478,
+        "2025_apertura": 70268,
+        "2025_clausura": 77826,
+    },
+    "LigaPro Ecuador": {
+        "2023": 48720,
+        "2024": 58043,
+        "2025": 71184,
+    },
+    "Eredivisie": {
+        "23/24": 52554,
+        "24/25": 61666,
+        "25/26": 77012,
+    },
+    "Saudi Pro League": {
+        "23/24": 53241,
+        "24/25": 63998,
+        "25/26": 80443,
+    },
+}
+
+# Temporadas históricas que queremos descargar
+# Son los IDs de Sofascore de las temporadas 23/24 y 24/25
+TEMPORADAS_HISTORICAS = [
+    # (nombre_liga, liga_id, season_id, label)
+    ("Premier League",      17,    52186, "23/24"),
+    ("Premier League",      17,    61627, "24/25"),
+    ("La Liga",             8,     52376, "23/24"),
+    ("La Liga",             8,     61643, "24/25"),
+    ("Serie A",             23,    52760, "23/24"),
+    ("Serie A",             23,    63515, "24/25"),
+    ("Bundesliga",          35,    52608, "23/24"),
+    ("Bundesliga",          35,    63516, "24/25"),
+    ("Ligue 1",             34,    52571, "23/24"),
+    ("Ligue 1",             34,    61736, "24/25"),
+    ("Champions League",    7,     52162, "23/24"),
+    ("Champions League",    7,     61644, "24/25"),
+    ("Europa League",       679,   53654, "23/24"),
+    ("Europa League",       679,   61645, "24/25"),
+    ("Conference League",   17015, 52327, "23/24"),
+    ("Conference League",   17015, 61648, "24/25"),
+    ("Copa Libertadores",   384,   47974, "2023"),
+    ("Copa Libertadores",   384,   57296, "2024"),
+    ("Copa Sudamericana",   480,   47968, "2023"),
+    ("Copa Sudamericana",   480,   57297, "2024"),
+    ("Liga MX Apertura", 11621, 52052, "Apertura 2023"),
+    ("Liga MX Apertura", 11621, 61419, "Apertura 2024"),
+    ("Liga MX Clausura", 11620, 47656, "Clausura 2023"),
+    ("Liga MX Clausura", 11620, 57315, "Clausura 2024"),  # verificar
+    ("MLS",                 242,   47955, "2023"),
+    ("MLS",                 242,   57317, "2024"),
+    ("Brasileirao",         325,   48982, "2023"),
+    ("Brasileirao",         325,   58766, "2024"),
+    ("Liga Argentina",      155,   57478, "2024"),
+    ("LigaPro Ecuador",     240,   48720, "2023"),
+    ("LigaPro Ecuador",     240,   58043, "2024"),
+    ("Eredivisie",          37,    52554, "23/24"),
+    ("Eredivisie",          37,    61666, "24/25"),
+    ("Saudi Pro League",    955,   53241, "23/24"),
+    ("Saudi Pro League",    955,   63998, "24/25"),
+]
+
+class SofascoreCliente:
+    """
+    Cliente de Sofascore usando Playwright.
+    Lanza un browser Chromium real para evitar el bloqueo
+    que Sofascore aplica a requests directos de Python.
+
+    Patrón Singleton — una sola instancia del browser
+    durante toda la ejecución del pipeline.
+    """
+
+    def __init__(self, headless: bool = True):
+        self._playwright = None
+        self._browser: Optional[Browser] = None
+        self._page: Optional[Page] = None
+        self.headless = headless
+
+    def iniciar(self):
+        """Arranca el browser y visita Sofascore para obtener cookies."""
+        log.info("Iniciando browser Chromium...")
+        self._playwright = sync_playwright().start()
+        self._browser = self._playwright.chromium.launch(
+            headless=self.headless,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled",
+            ]
+        )
+        # Contexto con configuración de browser real
+        context = self._browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/126.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1920, "height": 1080},
+            locale="es-ES",
+        )
+        self._page = context.new_page()
+
+        # Visita la página principal para obtener cookies válidas
+        log.info("Visitando sofascore.com para obtener cookies...")
+        self._page.goto(
+            "https://www.sofascore.com/",
+            wait_until="domcontentloaded",
+            timeout=60000
+        )
+        time.sleep(2)
+        log.info("Browser listo")
+
+    def cerrar(self):
+        """Cierra el browser limpiamente."""
+        if self._browser:
+            self._browser.close()
+        if self._playwright:
+            self._playwright.stop()
+        log.info("Browser cerrado")
+
+    def get(self, endpoint: str, params: dict = None) -> Optional[dict]:
+        """
+        Hace una request a la API de Sofascore usando el browser.
+        Navega directamente a la URL del endpoint JSON.
+        """
+        url = f"{BASE_URL}{endpoint}"
+        if params:
+            query = "&".join(f"{k}={v}" for k, v in params.items())
+            url = f"{url}?{query}"
+
+        log.info(f"GET {url}")
+
+        try:
+            # Navega al endpoint JSON directamente
+            response = self._page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=30000
+            )
+
+            if response.status == 429:
+                log.warning("Rate limit — esperando 60 segundos")
+                time.sleep(60)
+                return self.get(endpoint, params)
+
+            if response.status == 404:
+                log.warning(f"404: {url}")
+                return None
+
+            if response.status != 200:
+                log.error(f"Error {response.status}: {url}")
+                return None
+
+            # Extrae el JSON del contenido de la página
+            content = self._page.content()
+
+            # El JSON viene dentro de <pre> o <body>
+            # Playwright lo renderiza como texto plano
+            text = self._page.inner_text("body")
+            data = json.loads(text)
+
+            time.sleep(1.5)
+            return data
+
+        except json.JSONDecodeError as e:
+            log.error(f"Error parseando JSON: {e}")
+            return None
+        except Exception as e:
+            log.error(f"Error en request: {e}")
+            return None
+
+    def get_partidos_fecha(self, fecha: str) -> list:
+        """Trae todos los partidos de fútbol de una fecha."""
+        data = self.get(f"/sport/football/scheduled-events/{fecha}")
+        if not data:
+            return []
+        eventos = data.get("events", [])
+        log.info(f"Partidos encontrados en {fecha}: {len(eventos)}")
+        return eventos
+
+    def get_stats_partido(self, sofascore_id: int) -> Optional[list]:
+        """Trae estadísticas completas de un partido."""
+        data = self.get(f"/event/{sofascore_id}/statistics")
+        if not data:
+            return None
+        return data.get("statistics", [])
+
+    def get_lineups_partido(self, sofascore_id: int) -> Optional[dict]:
+        """Trae alineaciones y stats de jugadores."""
+        return self.get(f"/event/{sofascore_id}/lineups")
+
+    def get_partidos_liga_temporada(
+        self,
+        liga_id: int,
+        temporada_id: int,
+        pagina: int = 0
+    ) -> list:
+        """Trae partidos históricos de una liga y temporada."""
+        data = self.get(
+            f"/unique-tournament/{liga_id}/season/{temporada_id}"
+            f"/events/last/{pagina}"
+        )
+        if not data:
+            return []
+        return data.get("events", [])
+
+    def get_temporadas_liga(self, liga_id: int) -> list:
+        """Trae las temporadas disponibles de una liga."""
+        data = self.get(f"/unique-tournament/{liga_id}/seasons")
+        if not data:
+            return []
+        return data.get("seasons", [])
+
+    def __enter__(self):
+        """Permite usar el cliente con 'with' — abre el browser."""
+        self.iniciar()
+        return self
+
+    def __exit__(self, *args):
+        """Cierra el browser al salir del bloque 'with'."""
+        self.cerrar()
