@@ -25,7 +25,13 @@ class PrediccionService:
         self.settings = get_settings()
 
 
-    def predecir(self, partido: Partido) -> dict | None:
+    def predecir(self, partido: Partido, persistir: bool = False) -> dict | None:
+        """persistir=True guarda la predicción para tracking de MLOps
+        (ver job_cerrar_predicciones.py). False por default — Kelly,
+        Monte Carlo y el resto de los endpoints llaman a predecir() como
+        utilidad interna, potencialmente varias veces por partido; no
+        cada llamada es "la predicción oficial del día". predecir_hoy()
+        sí persiste — ese es el snapshot real a trackear."""
         if not self.modelo_service.disponible:
             log.warning("Modelo no disponible")
             return None
@@ -56,14 +62,14 @@ class PrediccionService:
 
         mercados = self._generar_mercados(prob_local, prob_empate, prob_visit)
 
-        #Persiste la prediccion para trackind del MLOPS
-        self.prediccion_repo.crear(
-            partido_id = partido.id,
-            mercado = "1X2",
-            prediccion = pred_label,
-            probabilidad = confianza,
-            confianza = confianza,
-        )
+        if persistir:
+            self.prediccion_repo.crear(
+                partido_id = partido.id,
+                mercado = "1X2",
+                prediccion = pred_label,
+                probabilidad = confianza,
+                confianza = confianza,
+            )
 
         return {
             "partido_id": partido.id,
@@ -125,7 +131,7 @@ class PrediccionService:
         resultados = []
         for p in partidos:
             if p.estado in ["NS", "TDB"]:
-                pred = self.predecir(p)
+                pred = self.predecir(p, persistir=True)
                 if pred:
                     resultados.append(pred)
         return resultados

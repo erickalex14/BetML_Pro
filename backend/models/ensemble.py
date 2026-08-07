@@ -18,12 +18,19 @@ from backend.models.lstm import cargar_lstm, predecir_lstm
 from backend.models.gnn import cargar_gnn, predecir_gnn
 from backend.models.calibracion import cargar_calibracion, calibrar_probabilidades
 from backend.features.dataset import FEATURES_ML
+from backend.repositories.prediccion_repo import PrediccionRepository
 import pandas as pd
 
 log = logging.getLogger(__name__)
 
+MERCADO_TRACKING = "1X2-ensemble"
 
-def predecir_ensemble(db: Session, partido: Partido) -> dict | None:
+
+def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) -> dict | None:
+    """persistir=True guarda la predicción para tracking de MLOps (ver
+    job_cerrar_predicciones.py) — False por default para no ensuciar esa
+    tabla con llamadas de prueba/backtesting. El endpoint real de la API
+    la prende explícito."""
     features = construir_features_partido(db, partido)
     if features is None:
         log.warning(f"Sin historial suficiente para partido {partido.id}")
@@ -79,14 +86,25 @@ def predecir_ensemble(db: Session, partido: Partido) -> dict | None:
 
     idx_max = int(np.argmax(proba_combinada))
     etiquetas = ["Local", "Empate", "Visitante"]
+    pred_label = etiquetas[idx_max]
+    confianza = round(float(proba_combinada[idx_max]), 4)
+
+    if persistir:
+        PrediccionRepository(db).crear(
+            partido_id=partido.id,
+            mercado=MERCADO_TRACKING,
+            prediccion=pred_label,
+            probabilidad=confianza,
+            confianza=confianza,
+        )
 
     return {
         "partido_id": partido.id,
         "prob_local": round(float(proba_combinada[0]), 4),
         "prob_empate": round(float(proba_combinada[1]), 4),
         "prob_visitante": round(float(proba_combinada[2]), 4),
-        "prediccion": etiquetas[idx_max],
-        "confianza": round(float(proba_combinada[idx_max]), 4),
+        "prediccion": pred_label,
+        "confianza": confianza,
         "modelos_usados": [
             {"nombre": nombre, "peso": round(float(w), 3),
              "prob_local": round(float(p[0]), 4),

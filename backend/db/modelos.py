@@ -239,5 +239,74 @@ class EstadisticaJugador(Base):
         return f"<EstadisticaJugador {self.nombre} partido={self.partido_id}>"
 
 
+class Parlay(Base):
+    """Apuesta combinada guardada — ver /predicciones/combinada.
+    acerto=None mientras algún partido de sus selecciones no haya
+    terminado; una vez que todos terminen, acerto = AND de todas las
+    patas (una sola que pierda tumba el combinado entero)."""
+    __tablename__ = "parlays"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id       = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    cuota_combinada  = Column(Float, nullable=False)
+    prob_combinada   = Column(Float, nullable=False)
+    stake_pct        = Column(Float, nullable=True)
+    bankroll         = Column(Float, nullable=True)
+    acerto           = Column(Boolean, nullable=True)
+    creado_en        = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Parlay {self.id} cuota={self.cuota_combinada} acerto={self.acerto}>"
+
+
+class ParlaySeleccion(Base):
+    """Una pata de un Parlay — mercado usa la misma convención de clave
+    interna que resolver_mercado.py (odds_key sin el prefijo 'odds_')."""
+    __tablename__ = "parlay_selecciones"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    parlay_id   = Column(Integer, ForeignKey("parlays.id"), nullable=False)
+    partido_id  = Column(Integer, ForeignKey("partidos.id"), nullable=False)
+    mercado     = Column(String(50), nullable=False)
+    nombre      = Column(String(100), nullable=True)  # nombre legible, ej "Goles Over 2.5"
+    probabilidad = Column(Float, nullable=False)
+    cuota       = Column(Float, nullable=False)
+    acerto      = Column(Boolean, nullable=True)
+
+    def __repr__(self):
+        return f"<ParlaySeleccion {self.mercado} partido={self.partido_id} acerto={self.acerto}>"
+
+
+class Usuario(Base):
+    __tablename__ = "usuarios"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    email          = Column(String(255), nullable=False, unique=True)
+    password_hash  = Column(String(255), nullable=False)
+    activo         = Column(Boolean, default=True)
+    creado_en      = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Usuario {self.email}>"
+
+
+class Odds(Base):
+    """Cuotas reales de casas de apuestas — API-Football /odds (gratis
+    por fixture_id, ver backend/pipeline/job_odds.py). mercado usa la
+    MISMA convención de nombres que kelly.py (odds_local, odds_goles_over_2_5,
+    etc) — se puede pasar directo a analizar_mercados_kelly() sin traducir."""
+    __tablename__ = "odds"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    partido_id     = Column(Integer, ForeignKey("partidos.id"), nullable=False)
+    bookmaker      = Column(String(50), nullable=False)
+    mercado        = Column(String(50), nullable=False)
+    valor          = Column(Float, nullable=False)
+    actualizado_en = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Odds {self.mercado}={self.valor} ({self.bookmaker}) partido={self.partido_id}>"
+
+
 
 

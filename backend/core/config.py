@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     model_name:        str = "modelo_v1.pkl"
     umbral_confianza:  float = 0.60
 
+    #AUTH — JWT_SECRET_KEY debe venir del .env en producción (nunca el
+    # default de acá, es público en el repo). Generar con:
+    # python -c "import secrets; print(secrets.token_hex(32))"
+    jwt_secret_key:        str = "dev-secret-cambiar-en-produccion"
+    jwt_algoritmo:          str = "HS256"
+    jwt_expira_minutos:     int = 60 * 24 * 7  # 7 días
+
     class Config:
         #Lee el .env
         env_file = ".env"

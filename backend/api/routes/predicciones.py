@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -16,13 +17,14 @@ class SeleccionParlay(BaseModel):
                   # "rojas_over_0_5", "handicap_local_m1_0", "1t_local",
                   # "goles_1t_over_0_5", etc — mismos nombres que las
                   # claves odds_* del endpoint /kelly (sin el prefijo "odds_")
-    cuota: float
+    cuota: Optional[float] = None  # None = usa la mejor cuota real guardada (job_odds.py)
 
 
 class ParlayRequest(BaseModel):
     selecciones: list[SeleccionParlay]
     bankroll: float = 1000.0
     fraccion: float = 0.25
+    guardar: bool = True  # persiste el parlay para MLOps — ver job_cerrar_predicciones.py
 
 
 def _correr_montecarlo_partido(db: Session, partido, pred: dict,
@@ -88,7 +90,7 @@ def prediccion_ensemble(partido_id: int, db: Session = Depends(get_db)):
     if not partido:
         raise HTTPException(status_code=404, detail="Partido no encontrado")
 
-    pred = predecir_ensemble(db, partido)
+    pred = predecir_ensemble(db, partido, persistir=True)
     if not pred:
         raise HTTPException(
             status_code=422,
@@ -102,33 +104,40 @@ def prediccion_ensemble(partido_id: int, db: Session = Depends(get_db)):
 def kelly_partido(
     partido_id: int,
     request: Request,
-    odds_local:     float = 2.0,
-    odds_empate:    float = 3.5,
-    odds_visitante: float = 4.0,
+    odds_local:     Optional[float] = None,
+    odds_empate:    Optional[float] = None,
+    odds_visitante: Optional[float] = None,
     bankroll:       float = 1000.0,
     fraccion:       float = 0.25,
     incluir_mercados_extra: bool = True,
+    guardar:        bool = False,
     db: Session = Depends(get_db)
 ):
     """
     Calcula el stake óptimo con Kelly Criterion para un partido.
 
-    Parámetros query:
-      odds_local, odds_empate, odds_visitante → cuotas 1X2 del bookmaker
-      bankroll   → capital disponible (default 1000)
-      fraccion   → fracción de Kelly (default 0.25 = Kelly cuarto)
-      incluir_mercados_extra → corre Monte Carlo y analiza también
-        Over/Under de goles, BTTS, corners y tarjetas — se activan pasando
-        su cuota como query param, ej: odds_goles_over_2_5=1.85,
-        odds_btts_si=1.75, odds_corners_over_9_5=1.90,
-        odds_tarjetas_over_2_5=1.80 (cualquier query param no reconocido
-        por los parámetros nombrados de arriba se toma como cuota extra).
+    guardar=True persiste cada value bet encontrada como Prediccion,
+    para que job_cerrar_predicciones.py (MLOps) las cierre cuando el
+    partido termine y /stats/modelo pueda mostrar accuracy real por
+    mercado. False por default — consultar Kelly no debería ensuciar el
+    tracking cada vez que alguien mira las cuotas.
+
+    Cuotas: si el partido tiene cuotas guardadas por job_odds.py (real,
+    de hasta 14 bookmakers vía API-Football gratis), se usan como base
+    automáticamente — la mejor cuota disponible por mercado. Cualquier
+    odds_* que pases por query param pisa esa cuota automática para ese
+    mercado puntual (útil si querés forzar la cuota de UNA casa en
+    particular, o si el partido es muy lejano y todavía no tiene cuotas
+    guardadas). Mercados: odds_local/empate/visitante, odds_goles_over_2_5,
+    odds_btts_si, odds_corners_over_9_5, odds_tarjetas_over_2_5, etc.
 
     Ejemplo:
-      GET /predicciones/123/kelly?odds_local=2.10&odds_empate=3.40&odds_visitante=4.50&odds_goles_over_2_5=1.85&bankroll=500
+      GET /predicciones/123/kelly  (usa cuotas automáticas para todo)
+      GET /predicciones/123/kelly?odds_local=2.10  (pisa solo 1X2 Local)
     """
     from backend.repositories.partido_repo import PartidoRepository
     from backend.services.prediccion_service import PrediccionService
+    from backend.models.odds_service import obtener_mejores_odds
 
     repo    = PartidoRepository(db)
     partido = repo.get_por_id(partido_id)
@@ -146,15 +155,14 @@ def kelly_partido(
             detail="Sin historial suficiente para predecir"
         )
 
-    # Cuotas: los 3 mercados 1X2 nombrados + cualquier odds_* extra que
-    # venga en la query string (goles, btts, corners, tarjetas)
-    odds = {
-        "odds_local":     odds_local,
-        "odds_empate":    odds_empate,
-        "odds_visitante": odds_visitante,
-    }
+    # Base: mejores cuotas guardadas en BD. Encima, lo que venga
+    # explícito en la query pisa esa base mercado por mercado.
+    odds = obtener_mejores_odds(db, partido_id)
+    if odds_local is not None:     odds["odds_local"] = odds_local
+    if odds_empate is not None:    odds["odds_empate"] = odds_empate
+    if odds_visitante is not None: odds["odds_visitante"] = odds_visitante
     for k, v in request.query_params.items():
-        if k.startswith("odds_") and k not in odds:
+        if k.startswith("odds_") and k not in ("odds_local", "odds_empate", "odds_visitante"):
             try:
                 odds[k] = float(v)
             except ValueError:
@@ -174,6 +182,18 @@ def kelly_partido(
         montecarlo=montecarlo,
         calibracion=calibracion,
     )
+
+    if guardar and kelly["value_bets"]:
+        from backend.repositories.prediccion_repo import PrediccionRepository
+        repo_pred = PrediccionRepository(db)
+        for vb in kelly["value_bets"]:
+            repo_pred.crear(
+                partido_id=partido_id,
+                mercado=vb["clave"],
+                prediccion=vb["mercado"],
+                probabilidad=vb["probabilidad"],
+                confianza=vb["probabilidad"],
+            )
 
     return {
         "partido_id":  partido_id,
@@ -244,17 +264,20 @@ def kelly_portafolio_partido(
     correlación con los goles, mezclarlos en el mismo portafolio
     asumiría una independencia que no está modelada — quedan fuera.
 
-    Cuotas por query param: odds_local, odds_empate, odds_visitante,
-    odds_goles_over_2_5, odds_goles_under_2_5, odds_btts_si, odds_btts_no
-    — solo se arma portafolio con los mercados que traen cuota.
+    Cuotas: automáticas desde job_odds.py (mejor cuota real guardada por
+    mercado) — cualquier odds_* por query param pisa la automática para
+    ese mercado puntual. Mercados: odds_local, odds_empate, odds_visitante,
+    odds_goles_over_2_5, odds_goles_under_2_5, odds_btts_si, odds_btts_no.
 
     Ejemplo:
-      GET /predicciones/123/kelly/portafolio?odds_local=1.90&odds_goles_over_2_5=1.85&bankroll=1000
+      GET /predicciones/123/kelly/portafolio  (usa cuotas automáticas)
+      GET /predicciones/123/kelly/portafolio?odds_local=1.90&bankroll=1000
     """
     from backend.repositories.partido_repo import PartidoRepository
     from backend.services.prediccion_service import PrediccionService
     from backend.models.montecarlo import simular_partido
     from backend.models.kelly_portfolio import kelly_portfolio, probabilidad_ruina
+    from backend.models.odds_service import obtener_mejores_odds
 
     repo    = PartidoRepository(db)
     partido = repo.get_por_id(partido_id)
@@ -266,7 +289,7 @@ def kelly_portafolio_partido(
     if not pred:
         raise HTTPException(status_code=422, detail="Sin historial suficiente para predecir")
 
-    odds = {}
+    odds = obtener_mejores_odds(db, partido_id)
     for k, v in request.query_params.items():
         if k.startswith("odds_"):
             try:
@@ -339,17 +362,20 @@ def apuesta_combinada(body: ParlayRequest, db: Session = Depends(get_db)):
     Cualquier mercado de /kelly vale acá (1X2, goles O/U, BTTS, corners,
     tarjetas, rojas, hándicap, 1er/2do tiempo) — mercado usa el mismo
     nombre que la clave odds_* de ese endpoint, sin el prefijo "odds_".
+    cuota es opcional por pata — si no se pasa, usa la mejor cuota real
+    guardada (job_odds.py); si el partido no tiene cuotas guardadas
+    todavía y tampoco se pasó cuota, esa pata da error.
 
     Body de ejemplo:
       {"selecciones": [
-        {"partido_id": 123, "mercado": "local", "cuota": 1.9},
-        {"partido_id": 456, "mercado": "goles_over_2_5", "cuota": 1.85},
-        {"partido_id": 789, "mercado": "btts_si", "cuota": 1.75}
+        {"partido_id": 123, "mercado": "local"},
+        {"partido_id": 456, "mercado": "goles_over_2_5", "cuota": 1.85}
       ], "bankroll": 1000, "fraccion": 0.25}
     """
     from backend.repositories.partido_repo import PartidoRepository
     from backend.models.parlay import calcular_parlay_kelly
     from backend.models.kelly import construir_lista_mercados
+    from backend.models.odds_service import obtener_mejores_odds
 
     if len(body.selecciones) < 2:
         raise HTTPException(status_code=422, detail="Un parlay necesita 2+ selecciones")
@@ -379,15 +405,49 @@ def apuesta_combinada(body: ParlayRequest, db: Session = Depends(get_db)):
                 status_code=422,
                 detail=f"mercado inválido para partido {sel.partido_id}: {sel.mercado!r}")
 
+        cuota = sel.cuota
+        if cuota is None:
+            cuota = obtener_mejores_odds(db, sel.partido_id).get(odds_key_buscada)
+        if cuota is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"partido {sel.partido_id}: sin cuota guardada para {sel.mercado!r} — pasala a mano")
+
         nombre_mercado, prob, _, _ = encontrado
         selecciones_calc.append({
             "partido_id": sel.partido_id,
             "mercado": nombre_mercado,
+            "clave": sel.mercado,
             "prob": prob,
-            "cuota": sel.cuota,
+            "cuota": cuota,
         })
 
-    return calcular_parlay_kelly(selecciones_calc, bankroll=body.bankroll, fraccion=body.fraccion)
+    resultado = calcular_parlay_kelly(selecciones_calc, bankroll=body.bankroll, fraccion=body.fraccion)
+
+    if body.guardar and "error" not in resultado:
+        from backend.db.modelos import Parlay, ParlaySeleccion
+        parlay = Parlay(
+            cuota_combinada=resultado["cuota_combinada"],
+            prob_combinada=resultado["prob_combinada"],
+            stake_pct=resultado["stake_pct"],
+            bankroll=body.bankroll,
+        )
+        db.add(parlay)
+        db.flush()  # necesita parlay.id antes de crear las selecciones
+
+        for sc in selecciones_calc:
+            db.add(ParlaySeleccion(
+                parlay_id=parlay.id,
+                partido_id=sc["partido_id"],
+                mercado=sc["clave"],
+                nombre=sc["mercado"],
+                probabilidad=sc["prob"],
+                cuota=sc["cuota"],
+            ))
+        db.commit()
+        resultado["parlay_id"] = parlay.id
+
+    return resultado
 
 
 @router.get("/{partido_id}/jugadores")

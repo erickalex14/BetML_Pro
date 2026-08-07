@@ -1,12 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from backend.db.database import crear_tablas
 from backend.core.config import get_settings
-from backend.api.routes import partidos, predicciones, stats
+from backend.core.deps import get_usuario_actual
+from backend.api.routes import partidos, predicciones, stats, auth
 
 settings = get_settings()
 app = FastAPI(
-    tittle=settings.app_name,
+    title=settings.app_name,
     version=settings.app_version,
     description="Motor de pronosticos deportivos con ML"
 )
@@ -33,7 +34,17 @@ def health():
     return {"status": "ok"}
 
 
-# Registra los routers — cada uno en su archivo
-app.include_router(partidos.router,     prefix="/partidos",     tags=["Partidos"])
-app.include_router(predicciones.router, prefix="/predicciones", tags=["Predicciones"])
-app.include_router(stats.router,        prefix="/stats",        tags=["Stats"])
+# Registra los routers — cada uno en su archivo.
+# /auth queda abierto (necesitás poder loguearte sin estar logueado
+# todavía). El resto requiere JWT válido — dependencies a nivel de router
+# protege TODOS los endpoints de ese archivo sin tocar cada función.
+app.include_router(auth.router,         prefix="/auth",         tags=["Auth"])
+app.include_router(
+    partidos.router, prefix="/partidos", tags=["Partidos"],
+    dependencies=[Depends(get_usuario_actual)])
+app.include_router(
+    predicciones.router, prefix="/predicciones", tags=["Predicciones"],
+    dependencies=[Depends(get_usuario_actual)])
+app.include_router(
+    stats.router, prefix="/stats", tags=["Stats"],
+    dependencies=[Depends(get_usuario_actual)])

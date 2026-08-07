@@ -43,6 +43,53 @@ def job_estadisticas():
         log.error(f"Error en job estadísticas: {e}")
 
 
+def job_cerrar_predicciones():
+    """
+    01:30 — MLOps: compara las predicciones guardadas con el resultado
+    real de los partidos que ya terminaron. Sin esto, acerto queda NULL
+    para siempre y /stats/modelo nunca calcula un accuracy real.
+    """
+    log.info("Iniciando job cerrar predicciones (01:30)")
+    try:
+        from backend.pipeline.job_cerrar_predicciones import correr_job_cerrar_predicciones
+        correr_job_cerrar_predicciones()
+        log.info("Job cerrar predicciones completado")
+    except Exception as e:
+        log.error(f"Error en job cerrar predicciones: {e}")
+
+
+def job_sofascore_diario():
+    """
+    01:00 — Rellena con Sofascore lo que API-Football no trae: xG,
+    corners, presiones, ratings y stats de jugador de los partidos que
+    terminaron hoy. Corre después de job_estadisticas (00:30) — necesita
+    que esos partidos ya estén guardados para poder adjuntarles stats.
+    """
+    log.info("Iniciando job Sofascore diario (01:00)")
+    try:
+        from backend.pipeline.sofascore.job_sofascore import correr_job_sofascore_diario
+        correr_job_sofascore_diario()
+        log.info("Job Sofascore diario completado")
+    except Exception as e:
+        log.error(f"Error en job Sofascore diario: {e}")
+
+
+def job_odds():
+    """
+    01:15 — Cuotas reales (hasta 14 bookmakers, gratis vía fixture_id)
+    para los partidos de los próximos días. Corre después de
+    job_fixtures_manana (00:45) — necesita que esos fixtures ya estén
+    guardados en BD antes de poder pedir sus cuotas.
+    """
+    log.info("Iniciando job cuotas (01:15)")
+    try:
+        from backend.pipeline.job_odds import correr_job_odds
+        correr_job_odds()
+        log.info("Job cuotas completado")
+    except Exception as e:
+        log.error(f"Error en job cuotas: {e}")
+
+
 def job_fixtures_manana():
     """
     00:45 — Guarda los partidos del día SIGUIENTE.
@@ -65,13 +112,19 @@ def iniciar_scheduler():
     log.info("=" * 55)
     log.info("  BetML Pro — Scheduler iniciado")
     log.info("  23:55 → Partidos del día (FT)")
-    log.info("  00:30 → Estadísticas de partidos")
+    log.info("  00:30 → Estadísticas de partidos (API-Football)")
     log.info("  00:45 → Fixtures del día siguiente")
+    log.info("  01:00 → Estadísticas Sofascore (xG, corners, jugadores)")
+    log.info("  01:15 → Cuotas de los próximos partidos")
+    log.info("  01:30 → MLOps: cerrar predicciones vs resultado real")
     log.info("=" * 55)
 
     schedule.every().day.at("23:55").do(job_pipeline_dia)
     schedule.every().day.at("00:30").do(job_estadisticas)
     schedule.every().day.at("00:45").do(job_fixtures_manana)
+    schedule.every().day.at("01:00").do(job_sofascore_diario)
+    schedule.every().day.at("01:15").do(job_odds)
+    schedule.every().day.at("01:30").do(job_cerrar_predicciones)
 
     while True:
         schedule.run_pending()

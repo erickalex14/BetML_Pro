@@ -173,6 +173,7 @@ def analizar_mercados_kelly(
 
         mercados.append({
             "mercado":        nombre_mercado,
+            "clave":          odds_key.removeprefix("odds_"),  # para resolver_mercado.py — ver job_cerrar_predicciones.py
             "probabilidad":   round(prob, 4),
             "cuota":          round(cuota, 2),
             "ev":             kelly["ev"],
