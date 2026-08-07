@@ -143,17 +143,27 @@ def parsear_stats_partido(
 
 def parsear_jugadores(
     partido_id: int,
-    lineups_raw: dict
+    lineups_raw: dict,
+    equipo_local_id: int,
+    equipo_visit_id: int,
 ) -> list:
     """
     Convierte las alineaciones de Sofascore en objetos
     EstadisticaJugador listos para guardar en BD.
+
+    equipo_local_id/equipo_visit_id: id INTERNO (equipos.id, no el de
+    Sofascore) — antes esto intentaba leer equipo_data["team"]["id"] del
+    payload de Sofascore, que (a) es el id de Sofascore, no el nuestro —
+    mismo espacio de numeración que el resto del proyecto ya tuvo que
+    separar en una columna sofascore_id aparte — y (b) esa clave ni
+    siquiera existe en el JSON real de /lineups, por eso equipo_id salía
+    NULL en el 100% de las 695k filas ya guardadas.
     """
     jugadores = []
 
     for es_local, clave in [(True, "home"), (False, "away")]:
         equipo_data = lineups_raw.get(clave, {})
-        equipo_id   = equipo_data.get("team", {}).get("id")
+        equipo_id   = equipo_local_id if es_local else equipo_visit_id
         players     = equipo_data.get("players", [])
 
         for p in players:

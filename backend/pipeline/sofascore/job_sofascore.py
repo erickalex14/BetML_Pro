@@ -1,17 +1,20 @@
+"""Job diario — trae stats de Sofascore para los partidos de los últimos
+días que ya terminaron.
+
+El endpoint por fecha de Sofascore (/sport/football/scheduled-events/{fecha})
+está muerto (404 confirmado en vivo, no es un bug nuestro). En vez de
+escanear "qué se jugó hoy en todo el mundo", este job recorre solo la
+página 0 (los eventos más recientes) de cada liga+temporada en
+TEMPORADAS_HISTORICAS — el mismo endpoint por-torneo que sí funciona,
+usado en todo el resto del pipeline — y filtra a los últimos DIAS_ATRAS
+días. Barato: una request de página por liga-temporada, ~56 requests.
+"""
 import logging
-from datetime import date, timedelta
-from sqlalchemy.orm import Session
+from datetime import date, timedelta, datetime
 from backend.db.database import SessionLocal, crear_tablas
-from backend.db.modelos import Partido, EstadisticaSofascore
-from backend.pipeline.sofascore import cliente
-from backend.pipeline.sofascore.parser import (
-    parsear_stats_partido,
-    parsear_jugadores
-)
-from backend.pipeline.sofascore.guardador_sofascore import (
-    guardar_stats_sofascore,
-    guardar_jugadores
-)
+from backend.pipeline.sofascore.cliente import SofascoreCliente, TEMPORADAS_HISTORICAS
+from backend.pipeline.sofascore.equipos import resolver_liga_id
+from backend.pipeline.sofascore.job_historico_sofascore import procesar_evento_stats
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,155 +22,73 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Máximo de partidos a procesar por ejecución
-MAX_PARTIDOS = 30
+DIAS_ATRAS = 3  # margen de tolerancia si el job no corrió ayer
 
 
-def correr_job_sofascore_diario():
-    """
-    Job diario — trae stats de Sofascore para los
-    partidos de hoy que ya terminaron (FT).
-    """
+def correr_job_sofascore_diario(dias_atras: int = DIAS_ATRAS):
     log.info("=" * 55)
     log.info("  Job Sofascore Diario")
     log.info("=" * 55)
 
     crear_tablas()
     db = SessionLocal()
-    procesados  = 0
-    stats_ok    = 0
-    jugadores_ok= 0
+    stats_ok = 0
+    jugadores_ok = 0
+    no_match = 0
+    ya_en_bd = 0
+    corte = date.today() - timedelta(days=dias_atras)
 
     try:
-        hoy = date.today().isoformat()
-        log.info(f"Buscando partidos FT de hoy: {hoy}")
+        with SofascoreCliente(headless=True) as cliente:
+            for nombre_liga, liga_id, season_id, label in TEMPORADAS_HISTORICAS:
+                db_liga_id = resolver_liga_id(db, nombre_liga)
+                if not db_liga_id:
+                    continue
 
-        # Trae todos los partidos de hoy desde Sofascore
-        eventos = cliente.get_partidos_fecha(hoy)
+                # Página 0 = eventos más recientes de esta temporada.
+                # Si la temporada ya terminó, esos eventos quedan viejos
+                # y el filtro de fecha los descarta sin costo extra.
+                eventos = cliente.get_partidos_liga_temporada(
+                    liga_id=liga_id, temporada_id=season_id, pagina=0
+                )
+                if not eventos:
+                    continue
 
-        if not eventos:
-            log.info("Sin eventos en Sofascore hoy")
-            return
+                recientes = [
+                    e for e in eventos
+                    if e.get("status", {}).get("type") == "finished"
+                    and datetime.fromtimestamp(e.get("startTimestamp", 0)).date() >= corte
+                ]
+                if not recientes:
+                    continue
 
-        # Filtra solo los que terminaron
-        ids_sofascore = set(cliente.LIGAS_SOFASCORE.values())
+                log.info(f"\n>>> {nombre_liga} — {label}: {len(recientes)} partidos recientes")
 
-        partidos_ft = [
-            e for e in eventos
-            if e.get("status", {}).get("type") == "finished"
-            and e.get("tournament", {}).get(
-                "uniqueTournament", {}
-            ).get("id") in ids_sofascore
-        ]
+                for evento in recientes:
+                    status, stats_guardado, n_jugadores = procesar_evento_stats(
+                        db, cliente, evento, db_liga_id)
 
-        log.info(f"Partidos FT en nuestras ligas: {len(partidos_ft)}")
-
-        for evento in partidos_ft:
-            if procesados >= MAX_PARTIDOS:
-                log.warning(f"Límite de {MAX_PARTIDOS} alcanzado")
-                break
-
-            sofascore_id = evento.get("id")
-            if not sofascore_id:
-                continue
-
-            log.info(
-                f"Procesando: "
-                f"{evento['homeTeam']['name']} vs "
-                f"{evento['awayTeam']['name']} "
-                f"(ID Sofascore: {sofascore_id})"
-            )
-
-            # Busca el partido en nuestra BD por equipos y fecha
-            partido = _buscar_partido_bd(db, evento)
-
-            if not partido:
-                log.warning(
-                    f"Partido no encontrado en BD: {sofascore_id}")
-                procesados += 1
-                continue
-
-            # Verifica si ya tiene stats
-            ya_tiene = (
-                db.query(EstadisticaSofascore)
-                .filter(EstadisticaSofascore.partido_id == partido.id)
-                .count()
-            )
-            if ya_tiene:
-                log.info(f"Ya tiene stats: {partido.id} — saltando")
-                procesados += 1
-                continue
-
-            # Trae y guarda stats del partido
-            stats_raw = cliente.get_stats_partido(sofascore_id)
-            if stats_raw:
-                stats = parsear_stats_partido(
-                    partido.id, sofascore_id, stats_raw)
-                if stats and guardar_stats_sofascore(db, stats):
-                    stats_ok += 1
-
-            # Trae y guarda stats de jugadores
-            lineups_raw = cliente.get_lineups_partido(sofascore_id)
-            if lineups_raw:
-                jugadores = parsear_jugadores(partido.id, lineups_raw)
-                n = guardar_jugadores(db, jugadores, partido.id)
-                jugadores_ok += n
-
-            procesados += 1
+                    if status == "ya_tenia":
+                        ya_en_bd += 1
+                    elif status == "sin_match":
+                        no_match += 1
+                    elif status == "procesado":
+                        if stats_guardado:
+                            stats_ok += 1
+                        jugadores_ok += n_jugadores
 
     except Exception as e:
-        log.error(f"Error en job Sofascore: {e}")
+        log.error(f"Error en job Sofascore diario: {e}")
         db.rollback()
         raise
     finally:
         db.close()
-        log.info(f"Job finalizado — "
-                 f"{stats_ok} stats, "
-                 f"{jugadores_ok} jugadores guardados")
-
-
-def _buscar_partido_bd(db: Session, evento: dict) -> Partido:
-    """
-    Busca un partido en nuestra BD usando los nombres
-    de equipos del evento de Sofascore.
-    Sofascore no comparte IDs con API-Football
-    así que buscamos por nombre y fecha.
-    """
-    from datetime import datetime
-    from backend.db.modelos import Equipo
-
-    home_name = evento.get("homeTeam", {}).get("name", "")
-    away_name = evento.get("awayTeam", {}).get("name", "")
-    timestamp = evento.get("startTimestamp", 0)
-    fecha     = datetime.fromtimestamp(timestamp).date()
-
-    # Busca equipos por nombre (búsqueda parcial)
-    local = (
-        db.query(Equipo)
-        .filter(Equipo.nombre.ilike(f"%{home_name[:8]}%"))
-        .first()
-    )
-    visitante = (
-        db.query(Equipo)
-        .filter(Equipo.nombre.ilike(f"%{away_name[:8]}%"))
-        .first()
-    )
-
-    if not local or not visitante:
-        return None
-
-    partido = (
-        db.query(Partido)
-        .filter(
-            Partido.equipo_local_id == local.id,
-            Partido.equipo_visit_id == visitante.id,
-            Partido.fecha >= f"{fecha} 00:00:00",
-            Partido.fecha <= f"{fecha} 23:59:59",
-        )
-        .first()
-    )
-
-    return partido
+        log.info("\n" + "=" * 55)
+        log.info(f"  Stats guardadas     : {stats_ok}")
+        log.info(f"  Jugadores guardados : {jugadores_ok}")
+        log.info(f"  Ya estaban en BD    : {ya_en_bd}")
+        log.info(f"  Sin match en BD     : {no_match}")
+        log.info("=" * 55)
 
 
 if __name__ == "__main__":

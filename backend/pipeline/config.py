@@ -38,6 +38,14 @@ LIGAS = {
     "Saudi Pro League":    307,
 }
 
+# Torneos puntuales (no recurrentes) — fuera de LIGAS a propósito:
+# ese dict lo iteran también job_temporada_actual.py y pipeline_dia.py,
+# jobs de "temporada en curso" que correrían para siempre contra un
+# torneo que ya terminó.
+TORNEOS_PUNTUALES = {
+    "World Cup": (1, 2026),  # (liga_id API-Football, temporada)
+}
+
 # Temporada actual por liga — varía según competición
 TEMPORADA_ACTUAL = {
     "Premier League":    2025,

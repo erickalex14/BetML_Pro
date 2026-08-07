@@ -1,7 +1,7 @@
 import logging
 from backend.pipeline import api_client
 from backend.pipeline.guardador import guardar_partido
-from backend.pipeline.config import LIGAS
+from backend.pipeline.config import LIGAS, TORNEOS_PUNTUALES
 from backend.db.database import SessionLocal, crear_tablas
 from backend.db.modelos import Partido
 
@@ -11,7 +11,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-TEMPORADAS = [2023, 2024]
+TEMPORADAS = [2023, 2024, 2025]
 MAX_REQUESTS = 40
 
 # Mínimo de partidos esperados por liga y temporada.
@@ -113,6 +113,35 @@ def correr_job_historico():
                     f"  → {guardados_liga} partidos guardados "
                     f"| requests usados: {requests_usados}/{MAX_REQUESTS}"
                 )
+
+        # Torneos puntuales (Mundial, etc.) — una sola temporada fija,
+        # fuera del loop liga x temporada de arriba.
+        for nombre_torneo, (liga_id, temporada) in TORNEOS_PUNTUALES.items():
+            if requests_usados >= MAX_REQUESTS:
+                log.warning(
+                    f"Límite de {MAX_REQUESTS} requests alcanzado. "
+                    f"Corre el job de nuevo para continuar."
+                )
+                return
+
+            existentes = (
+                db.query(Partido)
+                .filter(Partido.liga_id == liga_id, Partido.temporada == temporada)
+                .count()
+            )
+            if existentes >= 100:  # Mundial: 104 partidos en formato 48 equipos
+                log.info(f"{nombre_torneo} {temporada} — completo ({existentes}) ✅")
+                continue
+
+            log.info(f"Descargando {nombre_torneo} {temporada} ({existentes} actuales)...")
+            data = api_client.get("/fixtures", params={
+                "league": liga_id, "season": temporada, "status": "FT"
+            })
+            requests_usados += 1
+            for fixture in data.get("response", []):
+                guardar_partido(db, fixture, liga_id, temporada)
+                partidos_nuevos += 1
+            log.info(f"  → {len(data.get('response', []))} partidos guardados")
 
         log.info("\n" + "=" * 55)
         log.info(f"  Histórico completo")

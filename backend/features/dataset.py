@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 import pandas as pd
 from backend.db.database import SessionLocal, crear_tablas
 from backend.db.modelos import Partido
@@ -9,6 +10,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 log = logging.getLogger(__name__)
+
+ROOT_DIR = Path(__file__).parent.parent.parent
+CACHE_PATH = ROOT_DIR / "data" / "dataset_features.pkl"
 
 # Lista completa de features que usa el modelo
 # El orden importa — XGBoost entrena con este orden
@@ -41,7 +45,20 @@ FEATURES_ML = [
 TARGET = "resultado"
 
 
-def generar_dataset(temporadas: list = [2023, 2024]) -> pd.DataFrame:
+def generar_dataset(temporadas: list = [2023, 2024, 2025, 2026],
+                     usar_cache: bool = True) -> pd.DataFrame:
+    # La generación recorre cada partido con ~9 queries a BD (forma, H2H,
+    # stats Sofascore, ratings) — con miles de partidos tarda minutos.
+    # Cachea a disco para no repetir ese costo en cada reentrenamiento;
+    # usar_cache=False fuerza recalcular (ej: tras cambiar el feature
+    # engineering, como pasó con el fix del leakage de rating_local).
+    if usar_cache and CACHE_PATH.exists():
+        df = pd.read_pickle(CACHE_PATH)
+        if sorted(df["temporada"].unique().tolist()) == sorted(set(temporadas)):
+            log.info(f"Dataset cacheado: {CACHE_PATH} ({df.shape[0]} partidos)")
+            return df
+        log.info("Cache no coincide con las temporadas pedidas — regenerando")
+
     log.info("=" * 55)
     log.info("  Generando dataset de features — BetML Pro")
     log.info("=" * 55)
@@ -102,11 +119,15 @@ def generar_dataset(temporadas: list = [2023, 2024]) -> pd.DataFrame:
     log.info(f"    Empate      (1): {dist.get(1, 0)}")
     log.info(f"    Visit gana  (2): {dist.get(2, 0)}")
 
+    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    df.to_pickle(CACHE_PATH)
+    log.info(f"Dataset cacheado en {CACHE_PATH}")
+
     return df
 
 
 if __name__ == "__main__":
-    df = generar_dataset(temporadas=[2023, 2024])
+    df = generar_dataset()
     if not df.empty:
         print(f"\nPrimeras 2 filas:")
         print(df[FEATURES_ML].head(2).to_string())

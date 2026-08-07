@@ -1,6 +1,6 @@
 import logging
 from backend.db.database import SessionLocal, crear_tablas
-from backend.db.modelos import Partido, EstadisticaSofascore, Equipo
+from backend.db.modelos import Partido, EstadisticaSofascore
 from backend.pipeline.sofascore.cliente import (
     SofascoreCliente,
     TEMPORADAS_HISTORICAS
@@ -13,6 +13,11 @@ from backend.pipeline.sofascore.guardador_sofascore import (
     guardar_stats_sofascore,
     guardar_jugadores
 )
+from backend.pipeline.sofascore.equipos import (
+    resolver_liga_id,
+    buscar_candidatos,
+    anclar_si_corresponde,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,13 +25,11 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Partidos a procesar por ejecución
-# Con 30 partidos por página y stats de cada uno
-# cada ejecución tarda ~5-10 minutos
-MAX_PARTIDOS_POR_EJECUCION = 500
-
-
-def correr_job_historico_sofascore():
+def correr_job_historico_sofascore(max_partidos: float = float("inf")):
+    # max_partidos cuenta solo partidos con trabajo real (stats descargadas).
+    # Los saltados (ya en BD / sin match) no consumen presupuesto: si lo
+    # hicieran, cada ejecución se agotaría re-escaneando lo ya guardado
+    # y nunca avanzaría a partidos nuevos.
     log.info("=" * 55)
     log.info("  Job Histórico Sofascore — Stats 23/24 + 24/25")
     log.info("=" * 55)
@@ -37,24 +40,29 @@ def correr_job_historico_sofascore():
     stats_ok    = 0
     jugadores_ok = 0
     no_match    = 0
+    ya_en_bd    = 0
 
     try:
         with SofascoreCliente(headless=True) as cliente:
             for nombre_liga, liga_id, season_id, label in TEMPORADAS_HISTORICAS:
 
-                if procesados >= MAX_PARTIDOS_POR_EJECUCION:
+                if procesados >= max_partidos:
                     log.warning(
-                        f"Límite de {MAX_PARTIDOS_POR_EJECUCION} alcanzado — "
-                        f"corre mañana para continuar"
+                        f"Límite de {max_partidos} alcanzado — "
+                        f"corre de nuevo para continuar"
                     )
                     break
 
                 log.info(f"\n>>> {nombre_liga} — {label} (season: {season_id})")
 
+                db_liga_id = resolver_liga_id(db, nombre_liga)
+                if not db_liga_id:
+                    log.warning(f"  Liga '{nombre_liga}' no encontrada en BD — match sin acotar por liga")
+
                 # Descarga partidos página por página (30 por página)
                 pagina = 0
                 while True:
-                    if procesados >= MAX_PARTIDOS_POR_EJECUCION:
+                    if procesados >= max_partidos:
                         break
 
                     partidos_raw = cliente.get_partidos_liga_temporada(
@@ -71,72 +79,25 @@ def correr_job_historico_sofascore():
                         f"  Página {pagina}: {len(partidos_raw)} partidos")
 
                     for evento in partidos_raw:
-                        if procesados >= MAX_PARTIDOS_POR_EJECUCION:
+                        if procesados >= max_partidos:
                             break
 
-                        # Solo partidos terminados
-                        if evento.get("status", {}).get("type") != "finished":
+                        status, stats_guardado, n_jugadores = procesar_evento_stats(
+                            db, cliente, evento, db_liga_id)
+
+                        if status == "no_terminado":
                             continue
-
-                        sofascore_id = evento.get("id")
-                        if not sofascore_id:
+                        if status == "ya_tenia":
+                            ya_en_bd += 1
                             continue
-
-                        home_name = evento.get(
-                            "homeTeam", {}).get("name", "")
-                        away_name = evento.get(
-                            "awayTeam", {}).get("name", "")
-
-                        # Verifica si ya tiene stats en BD
-                        ya_tiene = (
-                            db.query(EstadisticaSofascore)
-                            .filter(
-                                EstadisticaSofascore.sofascore_id == sofascore_id
-                            )
-                            .count()
-                        )
-                        if ya_tiene:
-                            log.info(
-                                f"  Ya tiene stats: {sofascore_id} — saltando")
-                            procesados += 1
-                            continue
-
-                        # Busca el partido en nuestra BD
-                        partido = _buscar_partido(
-                            db, evento, home_name, away_name)
-
-                        if not partido:
-                            log.warning(
-                                f"  No encontrado en BD: "
-                                f"{home_name} vs {away_name}"
-                            )
+                        if status == "sin_match":
                             no_match += 1
-                            procesados += 1
                             continue
 
-                        log.info(
-                            f"  Procesando: {home_name} vs {away_name} "
-                            f"(ID Sofascore: {sofascore_id})"
-                        )
-
-                        # Trae y guarda stats del partido
-                        stats_raw = cliente.get_stats_partido(sofascore_id)
-                        if stats_raw:
-                            stats = parsear_stats_partido(
-                                partido.id, sofascore_id, stats_raw)
-                            if stats and guardar_stats_sofascore(db, stats):
-                                stats_ok += 1
-
-                        # Trae y guarda stats de jugadores
-                        lineups_raw = cliente.get_lineups_partido(
-                            sofascore_id)
-                        if lineups_raw:
-                            jugadores = parsear_jugadores(
-                                partido.id, lineups_raw)
-                            n = guardar_jugadores(
-                                db, jugadores, partido.id)
-                            jugadores_ok += n
-
+                        # procesado
+                        if stats_guardado:
+                            stats_ok += 1
+                        jugadores_ok += n_jugadores
                         procesados += 1
 
                     # Sofascore devuelve 30 partidos por página
@@ -155,76 +116,103 @@ def correr_job_historico_sofascore():
         log.info(f"  Partidos procesados : {procesados}")
         log.info(f"  Stats guardadas     : {stats_ok}")
         log.info(f"  Jugadores guardados : {jugadores_ok}")
+        log.info(f"  Ya estaban en BD    : {ya_en_bd}")
         log.info(f"  Sin match en BD     : {no_match}")
         log.info("=" * 55)
 
 
-def _buscar_partido(db, evento: dict,
-                    home_name: str, away_name: str) -> Partido:
+def procesar_evento_stats(db, cliente, evento: dict, db_liga_id: int | None):
+    """Intenta traer y guardar stats+jugadores de un evento Sofascore ya
+    identificado como perteneciente a una liga nuestra. Compartido por el
+    job histórico (recorre temporadas completas) y el diario (recorre solo
+    página 0 de la temporada vigente).
+
+    Devuelve (status, stats_guardado, n_jugadores) — status en
+    'no_terminado' | 'ya_tenia' | 'sin_match' | 'procesado'."""
+    if evento.get("status", {}).get("type") != "finished":
+        return "no_terminado", False, 0
+
+    sofascore_id = evento.get("id")
+    if not sofascore_id:
+        return "no_terminado", False, 0
+
+    home_name = evento.get("homeTeam", {}).get("name", "")
+    away_name = evento.get("awayTeam", {}).get("name", "")
+
+    ya_tiene = (
+        db.query(EstadisticaSofascore)
+        .filter(EstadisticaSofascore.sofascore_id == sofascore_id)
+        .count()
+    )
+    partido = _buscar_partido(db, evento, db_liga_id)
+
+    log.debug(
+        f"  ID:{sofascore_id} | ya_tiene={ya_tiene} | "
+        f"partido_bd={'encontrado' if partido else 'NO encontrado'}"
+    )
+
+    if ya_tiene:
+        log.debug(f"  Ya tiene stats: {sofascore_id} — saltando")
+        return "ya_tenia", False, 0
+
+    if not partido:
+        log.debug(f"  No encontrado en BD: {home_name} vs {away_name}")
+        return "sin_match", False, 0
+
+    log.info(f"  Procesando: {home_name} vs {away_name} (ID Sofascore: {sofascore_id})")
+
+    stats_guardado = False
+    stats_raw = cliente.get_stats_partido(sofascore_id)
+    if stats_raw:
+        stats = parsear_stats_partido(partido.id, sofascore_id, stats_raw)
+        if stats and guardar_stats_sofascore(db, stats):
+            stats_guardado = True
+
+    n_jugadores = 0
+    lineups_raw = cliente.get_lineups_partido(sofascore_id)
+    if lineups_raw:
+        jugadores = parsear_jugadores(
+            partido.id, lineups_raw,
+            partido.equipo_local_id, partido.equipo_visit_id)
+        n_jugadores = guardar_jugadores(db, jugadores, partido.id)
+
+    return "procesado", stats_guardado, n_jugadores
+
+
+def _buscar_partido(db, evento: dict, liga_id: int | None) -> Partido:
     from datetime import datetime
 
     timestamp = evento.get("startTimestamp", 0)
     fecha = datetime.fromtimestamp(timestamp).date()
 
-    # Diccionario de nombres alternativos
-    # Sofascore usa nombres cortos, API-Football usa nombres completos
-    NOMBRES_MAP = {
-        "Wolverhampton":     "Wolverhampton",
-        "Manchester City":   "Manchester City",
-        "Manchester United": "Manchester United",
-        "Brighton":          "Brighton",
-        "Nottingham":        "Nottingham",
-        "Newcastle":         "Newcastle",
-        "Tottenham":         "Tottenham",
-        "West Ham":          "West Ham",
-        "Atletico":          "Atletico",
-        "Betis":             "Betis",
-        "Athletic":          "Athletic",
-        "Inter":             "Inter",
-        "Milan":             "AC Milan",
-        "Bayer 04":          "Bayer Leverkusen",
-        "Paris":             "Paris Saint-Germain",
-    }
+    home = evento.get("homeTeam", {})
+    away = evento.get("awayTeam", {})
 
-    def buscar_equipo(nombre: str):
-        # Intenta primero con los primeros 5 caracteres
-        equipo = (
-            db.query(Equipo)
-            .filter(Equipo.nombre.ilike(f"%{nombre[:5]}%"))
-            .first()
-        )
-        if equipo:
-            return equipo
+    candidatos_local = buscar_candidatos(db, home.get("name", ""), home.get("id"), liga_id)
+    candidatos_visit = buscar_candidatos(db, away.get("name", ""), away.get("id"), liga_id)
 
-        # Si no encuentra, busca palabra por palabra
-        palabras = nombre.split()
-        for palabra in palabras:
-            if len(palabra) > 4:
-                equipo = (
-                    db.query(Equipo)
-                    .filter(Equipo.nombre.ilike(f"%{palabra}%"))
-                    .first()
-                )
-                if equipo:
-                    return equipo
+    if not candidatos_local or not candidatos_visit:
         return None
 
-    local     = buscar_equipo(home_name)
-    visitante = buscar_equipo(away_name)
-
-    if not local or not visitante:
-        return None
-
-    return (
+    partido = (
         db.query(Partido)
         .filter(
-            Partido.equipo_local_id == local.id,
-            Partido.equipo_visit_id == visitante.id,
+            Partido.equipo_local_id.in_([e.id for e, _ in candidatos_local]),
+            Partido.equipo_visit_id.in_([e.id for e, _ in candidatos_visit]),
             Partido.fecha >= f"{fecha} 00:00:00",
             Partido.fecha <= f"{fecha} 23:59:59",
         )
         .first()
     )
+    if not partido:
+        return None
+
+    # El Partido confirma cuál candidato de cada lado era el correcto.
+    # Recién acá, ya desambiguado por rival+fecha, se ancla el sofascore_id.
+    anclar_si_corresponde(db, candidatos_local, partido.equipo_local_id, home.get("id"))
+    anclar_si_corresponde(db, candidatos_visit, partido.equipo_visit_id, away.get("id"))
+
+    return partido
 
 
 if __name__ == "__main__":

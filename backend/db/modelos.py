@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Float,
+    Column, Integer, BigInteger, String, Float,
     DateTime, Boolean, ForeignKey, Text
 )
 from sqlalchemy.orm import relationship, backref
@@ -27,11 +27,12 @@ class Liga(Base):
 class Equipo(Base):
     __tablename__ = "equipos"
 
-    id          = Column(Integer, primary_key=True)
-    nombre      = Column(String(100), nullable=False)
-    pais        = Column(String(50))
-    logo_url    = Column(String(255))
-    creado_en   = Column(DateTime, default=datetime.utcnow)
+    id            = Column(Integer, primary_key=True)
+    nombre        = Column(String(100), nullable=False)
+    pais          = Column(String(50))
+    logo_url      = Column(String(255))
+    sofascore_id  = Column(Integer, nullable=True, unique=True)
+    creado_en     = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<Equipo {self.nombre}>"
@@ -52,6 +53,7 @@ class Partido(Base):
     goles_visit_ht  = Column(Integer, nullable=True)
     temporada       = Column(Integer, nullable=False)
     jornada         = Column(String(50))
+    sofascore_id    = Column(BigInteger, nullable=True, unique=True)
     creado_en       = Column(DateTime, default=datetime.utcnow)
     actualizado_en  = Column(DateTime, default=datetime.utcnow,
                              onupdate=datetime.utcnow)

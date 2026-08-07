@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from backend.models.calibracion import factor_confianza
 
 log = logging.getLogger(__name__)
 
@@ -7,17 +8,25 @@ log = logging.getLogger(__name__)
 def calcular_kelly(
     probabilidad_modelo: float,
     cuota_decimal: float,
-    fraccion: float = 0.25
+    fraccion: float = 0.25,
+    factor_confianza: float = 1.0,
 ) -> dict:
     """
     Calcula el stake óptimo usando el Criterio de Kelly Fraccionario.
 
     Parámetros:
-      probabilidad_modelo → prob del modelo para esta selección (0-1)
+      probabilidad_modelo → prob del modelo para esta selección (0-1),
+                            idealmente ya calibrada (ver calibracion.py)
       cuota_decimal       → cuota del bookmaker (ej: 2.10)
       fraccion            → fracción de Kelly a usar (default 0.25)
                             Kelly completo = 1.0 (muy agresivo)
                             Kelly cuarto   = 0.25 (conservador)
+      factor_confianza    → multiplica la fracción (0.4-1.0). Baja el
+                            stake en rangos de probabilidad donde el
+                            modelo tiene poca data de validación para
+                            confiar en su calibración — ver
+                            calibracion.factor_confianza(). 1.0 = sin
+                            ajuste (comportamiento Kelly cuarto normal).
 
     Fórmula Kelly:
       f* = (b × p - q) / b
@@ -60,8 +69,10 @@ def calcular_kelly(
             "mensaje":       "Sin valor — no apostar"
         }
 
-    # Kelly fraccionario — reduce volatilidad
-    stake_kelly = kelly_completo * fraccion
+    # Kelly fraccionario — reduce volatilidad. factor_confianza reduce
+    # más todavía si esta probabilidad cae en un rango poco validado.
+    fraccion_efectiva = fraccion * factor_confianza
+    stake_kelly = kelly_completo * fraccion_efectiva
 
     # Limita el stake máximo al 5% del bankroll
     # protege contra errores del modelo
@@ -88,41 +99,75 @@ def calcular_kelly(
     }
 
 
+def _expandir_over_under(nombre_base: str, prefijo_odds: str,
+                          over_under: dict) -> list:
+    """De un dict {'over_2_5':0.55,'under_2_5':0.45,...} arma tuplas
+    (nombre_mercado, prob, odds_key) para over Y under de cada línea."""
+    entradas = []
+    lineas_vistas = {k.replace("over_", "").replace("under_", "")
+                     for k in over_under if k.startswith(("over_", "under_"))}
+    for clave in sorted(lineas_vistas):
+        linea_txt = clave.replace("_", ".")
+        for lado, etiqueta in (("over", "Over"), ("under", "Under")):
+            k = f"{lado}_{clave}"
+            if k in over_under:
+                entradas.append((
+                    f"{nombre_base} {etiqueta} {linea_txt}",
+                    over_under[k],
+                    f"odds_{prefijo_odds}_{k}",
+                    None,  # sin clase de calibración — viene de Poisson, no del clasificador
+                ))
+    return entradas
+
+
 def analizar_mercados_kelly(
     prediccion: dict,
     odds: dict,
     bankroll: float = 1000.0,
-    fraccion: float = 0.25
+    fraccion: float = 0.25,
+    montecarlo: Optional[dict] = None,
+    calibracion: Optional[dict] = None,
 ) -> list:
     """
     Analiza todos los mercados de un partido y calcula
     el stake óptimo para cada uno usando Kelly.
 
     Parámetros:
-      prediccion → dict con prob_local, prob_empate, prob_visitante
-      odds       → dict con odds_local, odds_empate, odds_visitante
-      bankroll   → capital disponible en la moneda que uses
-      fraccion   → fracción de Kelly (default 0.25)
+      prediccion  → dict con prob_local, prob_empate, prob_visitante
+      odds        → cuotas del bookmaker. 1X2: odds_local/empate/visitante.
+                    Resto de mercados (si se pasa montecarlo): claves
+                    odds_goles_over_2_5, odds_btts_si, odds_corners_over_9_5,
+                    odds_tarjetas_over_2_5, etc. — mercados sin cuota se
+                    saltan solos, no hace falta pasarlas todas.
+      bankroll    → capital disponible en la moneda que uses
+      fraccion    → fracción de Kelly (default 0.25)
+      montecarlo  → salida de simular_partido(), para extender el análisis
+                    a Over/Under de goles, BTTS, corners y tarjetas además
+                    de 1X2. Sin esto, solo analiza 1X2 (comportamiento
+                    original).
+      calibracion → salida de ajustar_calibracion() (calibracion.py). Si se
+                    pasa, la fracción de Kelly de los mercados 1X2 se ajusta
+                    por qué tan validada está la calibración en ese rango
+                    de probabilidad (ver calcular_kelly factor_confianza).
+                    No aplica a O/U ni BTTS ni corners/tarjetas — esos salen
+                    de la fórmula de Poisson, no de un clasificador que haga
+                    falta calibrar de la misma forma.
 
     Retorna lista de mercados ordenados por EV descendente.
     """
     mercados = []
+    analisis = construir_lista_mercados(prediccion, montecarlo)
 
-    # Mapeo de mercado → probabilidad del modelo → cuota
-    analisis = [
-        ("1X2 Local",     prediccion.get("prob_local",      0),
-                          odds.get("odds_local",            0)),
-        ("1X2 Empate",    prediccion.get("prob_empate",      0),
-                          odds.get("odds_empate",           0)),
-        ("1X2 Visitante", prediccion.get("prob_visitante",   0),
-                          odds.get("odds_visitante",        0)),
-    ]
-
-    for nombre_mercado, prob, cuota in analisis:
+    for nombre_mercado, prob, odds_key, clase_calib in analisis:
+        cuota = odds.get(odds_key, 0)
         if cuota <= 1.0 or prob <= 0:
             continue
 
-        kelly = calcular_kelly(prob, cuota, fraccion)
+        factor = 1.0
+        if calibracion is not None and clase_calib is not None:
+            factor = factor_confianza(calibracion, clase_calib, prob)
+
+        kelly = calcular_kelly(prob, cuota, fraccion, factor_confianza=factor)
 
         stake_unidades = kelly["stake_kelly"] * bankroll
 
@@ -137,6 +182,7 @@ def analizar_mercados_kelly(
             "stake_units":    round(stake_unidades, 2),
             "cuota_justa":    kelly["cuota_justa"],
             "prob_implicita": kelly["prob_implicita"],
+            "factor_confianza": round(factor, 3),
             "mensaje":        kelly["mensaje"],
         })
 
@@ -153,6 +199,66 @@ def analizar_mercados_kelly(
         "bankroll":       bankroll,
         "fraccion_kelly": fraccion,
     }
+
+
+def construir_lista_mercados(prediccion: dict, montecarlo: Optional[dict] = None) -> list:
+    """(nombre, prob, odds_key, clase_calibracion|None) de todos los
+    mercados disponibles para un partido — 1X2 siempre, el resto si se
+    pasa montecarlo (salida de simular_partido). Extraído de
+    analizar_mercados_kelly para que /combinada (parlay.py) pueda buscar
+    la probabilidad de CUALQUIER mercado por su odds_key sin duplicar
+    esta lista."""
+    analisis = [
+        ("1X2 Local",     prediccion.get("prob_local",    0), "odds_local",     0),
+        ("1X2 Empate",    prediccion.get("prob_empate",   0), "odds_empate",    1),
+        ("1X2 Visitante", prediccion.get("prob_visitante",0), "odds_visitante", 2),
+    ]
+
+    if montecarlo:
+        ou_goles = montecarlo.get("over_under", {})
+        analisis += _expandir_over_under("Goles", "goles", ou_goles)
+
+        if "btts_si" in montecarlo:
+            analisis.append(("BTTS Sí", montecarlo["btts_si"], "odds_btts_si", None))
+            analisis.append(("BTTS No", montecarlo["btts_no"], "odds_btts_no", None))
+
+        if "corners" in montecarlo:
+            analisis += _expandir_over_under(
+                "Corners", "corners", montecarlo["corners"].get("over_under", {}))
+
+        if "tarjetas" in montecarlo:
+            analisis += _expandir_over_under(
+                "Tarjetas", "tarjetas", montecarlo["tarjetas"].get("over_under", {}))
+
+        if "rojas" in montecarlo:
+            analisis += _expandir_over_under(
+                "Rojas", "rojas", montecarlo["rojas"].get("over_under", {}))
+
+        if "handicap" in montecarlo:
+            for clave, datos in montecarlo["handicap"].items():
+                linea_txt = f"{datos['linea']:+g}"
+                analisis.append((
+                    f"Hándicap Local {linea_txt}", datos["gana_local"],
+                    f"odds_handicap_local_{clave}", None))
+                analisis.append((
+                    f"Hándicap Visitante {-datos['linea']:+g}", datos["gana_visitante"],
+                    f"odds_handicap_visit_{clave}", None))
+
+        if "primer_tiempo" in montecarlo:
+            pt = montecarlo["primer_tiempo"]
+            for sufijo, nombre, datos in (
+                ("1t", "1er Tiempo", pt["resultado_1t"]),
+                ("2t", "2do Tiempo", pt["resultado_2t"]),
+            ):
+                analisis.append((f"{nombre} Local", datos["prob_local"],
+                                  f"odds_{sufijo}_local", None))
+                analisis.append((f"{nombre} Empate", datos["prob_empate"],
+                                  f"odds_{sufijo}_empate", None))
+                analisis.append((f"{nombre} Visitante", datos["prob_visitante"],
+                                  f"odds_{sufijo}_visitante", None))
+            analisis += _expandir_over_under("Goles 1er Tiempo", "goles_1t", pt["over_under_1t"])
+
+    return analisis
 
 
 def _resultado_vacio(mensaje: str) -> dict:

@@ -5,8 +5,10 @@ import joblib
 from pathlib import Path
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import accuracy_score, classification_report
+from sklearn.utils.class_weight import compute_sample_weight
 from xgboost import XGBClassifier
 from backend.features.dataset import FEATURES_ML, TARGET
+from backend.models.calibracion import ajustar_calibracion, guardar_calibracion
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,7 +28,7 @@ def entrenar_modelo(df: pd.DataFrame) -> tuple:
 
     if df.empty:
         log.error("Dataset vacío")
-        return None, None, None, None
+        return None, None, None, None, None
 
     log.info(f"Dataset: {df.shape[0]} partidos, {len(FEATURES_ML)} features")
 
@@ -66,8 +68,16 @@ def entrenar_modelo(df: pd.DataFrame) -> tuple:
 
     log.info("Entrenando XGBoost...")
 
+    # Empate es ~25% de los partidos, pero XGBoost sin balancear aprende
+    # que nunca predecirlo ya maximiza accuracy (jamás se equivoca "poco"
+    # con Empate, prefiere apostar todo a Local/Visitante). class_weight
+    # balanced iguala el costo de error entre las 3 clases en el
+    # entrenamiento — el mercado de empates deja de ser invisible.
+    pesos_train = compute_sample_weight(class_weight="balanced", y=y_train)
+
     modelo.fit(
         X_train, y_train,
+        sample_weight=pesos_train,
         eval_set=[(X_test, y_test)],
         verbose=100
     )
@@ -99,15 +109,30 @@ def entrenar_modelo(df: pd.DataFrame) -> tuple:
         bar = "█" * int(imp * 100)
         log.info(f"    {feat:<30} {imp:.4f} {bar}")
 
-    return modelo, X_test, y_test, y_pred_proba
+    # Calibración — ver backend/models/calibracion.py. Se ajusta acá con
+    # el mismo X_test/y_test de la evaluación (hold-out, no visto en train).
+    calibracion = ajustar_calibracion(y_test.to_numpy(), y_pred_proba)
+    guardar_calibracion(calibracion)
+
+    return modelo, X_test, y_test, y_pred_proba, accuracy
 
 
 def guardar_modelo(modelo: XGBClassifier,
-                   nombre: str = "modelo_v1.pkl"):
+                   nombre: str = "modelo_v1.pkl",
+                   accuracy: float = None):
     ruta = MODELS_DIR / nombre
     joblib.dump(modelo, ruta)
     log.info(f"Modelo guardado: {ruta}")
+    if accuracy is not None:
+        joblib.dump({"val_acc": accuracy}, MODELS_DIR / "metricas_xgboost.pkl")
     return ruta
+
+
+def cargar_metricas_xgboost() -> dict:
+    ruta = MODELS_DIR / "metricas_xgboost.pkl"
+    if not ruta.exists():
+        return {"val_acc": 0.5}
+    return joblib.load(ruta)
 
 
 def cargar_modelo(nombre: str = "modelo_v1.pkl"):
@@ -124,13 +149,13 @@ if __name__ == "__main__":
     from backend.features.dataset import generar_dataset
 
     log.info("Cargando dataset...")
-    df = generar_dataset(temporadas=[2023, 2024])
+    df = generar_dataset()
 
     if df.empty:
         log.warning("Sin datos suficientes")
     else:
         resultado = entrenar_modelo(df)
         if resultado[0]:
-            modelo, X_test, y_test, y_pred_proba = resultado
-            guardar_modelo(modelo)
+            modelo, X_test, y_test, y_pred_proba, accuracy = resultado
+            guardar_modelo(modelo, accuracy=accuracy)
             log.info("Modelo listo")

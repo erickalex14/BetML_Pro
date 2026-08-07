@@ -9,6 +9,7 @@ from backend.services.modelo_service import get_modelo_service
 from backend.core.config import get_settings
 from backend.features.calculador import construir_features_partido
 from backend.features.dataset import FEATURES_ML as FEATURES
+from backend.models.calibracion import cargar_calibracion, calibrar_probabilidades
 log = logging.getLogger(__name__)
 
 class PrediccionService:
@@ -36,6 +37,13 @@ class PrediccionService:
 
         X   = pd.DataFrame([features])[FEATURES].fillna(0)
         proba = self.modelo_service.predecir_proba(X)[0]
+
+        # Calibra — XGBoost no da probabilidades bien calibradas
+        # (ver backend/models/calibracion.py). Kelly y el resto del
+        # sistema deben ver la probabilidad calibrada, no la cruda.
+        calibracion = cargar_calibracion()
+        if calibracion is not None:
+            proba = calibrar_probabilidades(calibracion, proba)
 
         prob_local = round(float(proba[0]), 4)
         prob_empate = round(float(proba[1]), 4)
