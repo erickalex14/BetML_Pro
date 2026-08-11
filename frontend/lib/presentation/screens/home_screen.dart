@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
+import '../../domain/entities/partido.dart';
 import '../providers/partidos_provider.dart';
+import '../widgets/clay.dart';
+import '../widgets/confidence.dart';
+import '../widgets/app_bottom_nav.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,108 +21,142 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     Future.microtask(() {
       if (mounted) context.read<PartidosProvider>().cargarPartidosHoy();
-      }
-    );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Scaffold(
-      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: Row(children: [
-          Container(
-            width: 28, height: 28,
-            decoration: BoxDecoration(
-              color: AppTheme.primary,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.sports_soccer,
-              color: Colors.white, size: 16),
+        title: Row(mainAxisSize: MainAxisSize.min, children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset('assets/logos/logo_icon.png', width: 28, height: 28),
           ),
           const SizedBox(width: 10),
-          const Text('BetML Pro'),
+          const Text('Partidos'),
         ]),
         actions: [
           IconButton(
-            icon: const Icon(Icons.bar_chart, color: AppTheme.textSecond),
-            onPressed: () => context.go('/stats'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppTheme.textSecond),
-            onPressed: () =>
-              context.read<PartidosProvider>().cargarPartidosHoy(),
+            icon: Icon(Icons.refresh, color: c.textSecond),
+            onPressed: () => context.read<PartidosProvider>().cargarPartidosHoy(),
           ),
         ],
       ),
       body: Consumer<PartidosProvider>(
         builder: (context, provider, _) {
-          if (provider.cargando) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary));
-          }
+          if (provider.cargando) return _CargandoLista();
           if (provider.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline,
-                    color: AppTheme.red, size: 48),
-                  const SizedBox(height: 12),
-                  Text(provider.error!,
-                    style: const TextStyle(color: AppTheme.textSecond),
-                    textAlign: TextAlign.center),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: provider.cargarPartidosHoy,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary),
-                    child: const Text('Reintentar'),
-                  ),
-                ],
-              ),
-            );
+            return _Error(mensaje: provider.error!, onRetry: provider.cargarPartidosHoy);
           }
           if (provider.partidos.isEmpty) {
-            return const Center(
-              child: Text('No hay partidos hoy',
-                style: TextStyle(color: AppTheme.textSecond)));
+            return _Vacio();
           }
-          return Column(
+
+          final destacado = provider.topPicks.isNotEmpty ? provider.topPicks.first : null;
+          final resto = provider.porLiga.where((p) => p.id != destacado?.id).toList();
+
+          return ListView(
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('${provider.partidos.length} partidos hoy',
-                      style: const TextStyle(
-                        color: AppTheme.textSecond, fontSize: 13)),
-                    Text(provider.fecha,
-                      style: const TextStyle(
-                        color: AppTheme.textSecond, fontSize: 13)),
+                        style: TextStyle(color: c.textSecond, fontSize: 13)),
+                    Text(provider.fecha, style: AppTheme.eyebrow(c)),
                   ],
                 ),
               ),
-              // Filtro ligas
-              _LigaFilter(provider: provider),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView.builder(
+              if (destacado != null) ...[
+                Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: provider.porLiga.length,
-                  itemBuilder: (context, i) {
-                    final p = provider.porLiga[i];
-                    return _PartidoCard(
-                      partido: p,
-                      onTap: () => context.go('/partido/${p.id}'),
-                    );
-                  },
+                  child: _FeaturedCard(partido: destacado),
+                ),
+                const SizedBox(height: 16),
+              ],
+              _LigaFilter(provider: provider),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: resto.map((p) => _LedgerRow(partido: p)).toList(),
                 ),
               ),
             ],
           );
         },
+      ),
+      bottomNavigationBar: const AppBottomNav(current: AppTab.partidos),
+    );
+  }
+}
+
+class _FeaturedCard extends StatelessWidget {
+  final Partido partido;
+  const _FeaturedCard({required this.partido});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final pred = partido.prediccion!;
+    return ClayContainer(
+      padding: const EdgeInsets.fromLTRB(17, 16, 17, 15),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: c.ledgerSoft, borderRadius: BorderRadius.circular(5)),
+            child: Text('Alta confianza', style: AppTheme.eyebrow(c, color: c.ledger)),
+          ),
+          Text(partido.liga, style: TextStyle(color: c.textSecond, fontSize: 11.5)),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: Text(partido.local, maxLines: 2, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Column(children: [
+              Text(partido.hora, style: AppTheme.score(c, size: 15)),
+              Text('hoy', style: TextStyle(fontSize: 10, color: c.textSecond)),
+            ]),
+          ),
+          Expanded(child: Text(partido.visitante, textAlign: TextAlign.right, maxLines: 2, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text))),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          _prob('LOCAL', pred.probLocal, pred.resultado == 'Local', c),
+          const SizedBox(width: 8),
+          _prob('EMPATE', pred.probEmpate, pred.resultado == 'Empate', c),
+          const SizedBox(width: 8),
+          _prob('VISITA', pred.probVisitante, pred.resultado == 'Visitante', c),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          Text('Confianza', style: TextStyle(fontSize: 11, color: c.textSecond)),
+          const SizedBox(width: 10),
+          Expanded(child: ConfidenceMeter(value: pred.confianza)),
+        ]),
+        const SizedBox(height: 13),
+        ClayButton(label: 'Ver análisis completo', onPressed: () => context.go('/partido/${partido.id}')),
+      ]),
+    );
+  }
+
+  Widget _prob(String label, double prob, bool hi, AppColors c) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(color: hi ? c.pitch : c.bg2, borderRadius: BorderRadius.circular(12)),
+        child: Column(children: [
+          Text('${(prob * 100).toStringAsFixed(0)}%',
+              style: AppTheme.score(c, size: 16).copyWith(color: hi ? c.bg : c.text)),
+          const SizedBox(height: 1),
+          Text(label, style: TextStyle(fontSize: 9.5, color: hi ? c.bg.withValues(alpha: 0.75) : c.textSecond)),
+        ]),
       ),
     );
   }
@@ -130,20 +168,17 @@ class _LigaFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return SizedBox(
-      height: 36,
+      height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          _Chip(label: 'Todos',
-            selected: provider.ligaFiltro == null,
-            onTap: () => provider.setFiltroLiga(null)),
+          _Chip(label: 'Todos', selected: provider.ligaFiltro == null, onTap: () => provider.setFiltroLiga(null), c: c),
           ...provider.ligasDisponibles.map((liga) => _Chip(
-            label: liga,
-            selected: provider.ligaFiltro == liga,
-            onTap: () => provider.setFiltroLiga(liga),
-          )),
+                label: liga, selected: provider.ligaFiltro == liga, onTap: () => provider.setFiltroLiga(liga), c: c,
+              )),
         ],
       ),
     );
@@ -154,7 +189,8 @@ class _Chip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _Chip({required this.label, required this.selected, required this.onTap});
+  final AppColors c;
+  const _Chip({required this.label, required this.selected, required this.onTap, required this.c});
 
   @override
   Widget build(BuildContext context) {
@@ -162,158 +198,155 @@ class _Chip extends StatelessWidget {
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 13),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? AppTheme.primary : Colors.transparent,
+          color: selected ? c.pitch : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppTheme.primary : AppTheme.border,
-            width: 0.5),
+          border: Border.all(color: selected ? c.pitch : c.lineStrong, width: 0.7),
         ),
-        child: Center(
-          child: Text(label,
-            style: TextStyle(
-              color: selected ? Colors.white : AppTheme.textSecond,
-              fontSize: 12)),
-        ),
+        child: Text(label, style: TextStyle(color: selected ? c.bg : c.textSecond, fontSize: 12, fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
       ),
     );
   }
 }
 
-class _PartidoCard extends StatelessWidget {
-  final dynamic partido;
-  final VoidCallback onTap;
-  const _PartidoCard({required this.partido, required this.onTap});
+// Fila ledger — regla horizontal, no card repetida. La barra lateral
+// marca si el pick es fuerte (pitch) o no hay predicción (línea).
+class _LedgerRow extends StatelessWidget {
+  final Partido partido;
+  const _LedgerRow({required this.partido});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(children: [
-                    Container(
-                      width: 6, height: 6,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.primary,
-                        shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(partido.liga,
-                      style: const TextStyle(
-                        color: AppTheme.textSecond, fontSize: 11)),
-                  ]),
-                  Text(partido.hora,
-                    style: const TextStyle(
-                      color: AppTheme.textSecond, fontSize: 11)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(partido.local,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surface2,
-                      borderRadius: BorderRadius.circular(6)),
-                    child: Text(partido.marcador,
-                      style: TextStyle(
-                        color: partido.terminado
-                          ? AppTheme.textPrimary
-                          : AppTheme.textSecond,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600)),
-                  ),
-                  Expanded(
-                    child: Text(partido.visitante,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
-                  ),
-                ],
-              ),
-              if (partido.tienePred) ...[
-                const SizedBox(height: 10),
-                const Divider(color: AppTheme.border, height: 1),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _ProbBox('L', partido.prediccion!.probLocal,
-                            partido.prediccion!.resultado == 'Local'),
-                          _ProbBox('E', partido.prediccion!.probEmpate,
-                            partido.prediccion!.resultado == 'Empate'),
-                          _ProbBox('V', partido.prediccion!.probVisitante,
-                            partido.prediccion!.resultado == 'Visitante'),
-                        ],
-                      ),
-                    ),
-                    if (partido.prediccion!.mercadosTop.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppTheme.amber.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: AppTheme.amber, width: 0.5)),
-                        child: Text(
-                          partido.prediccion!.mercadosTop.first.label,
-                          style: const TextStyle(
-                            color: AppTheme.amber,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500)),
-                      ),
-                  ],
-                ),
-              ],
-            ],
+    final c = context.colors;
+    final pred = partido.prediccion;
+    final fuerte = pred != null && pred.altaConfianza;
+
+    return InkWell(
+      onTap: () => context.go('/partido/${partido.id}'),
+      child: Container(
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        child: Row(children: [
+          Container(width: 3, height: 30, decoration: BoxDecoration(
+              color: fuerte ? c.pitch : c.lineStrong, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(partido.liga.toUpperCase(), style: AppTheme.eyebrow(c)),
+              const SizedBox(height: 3),
+              Text('${partido.local} — ${partido.visitante}',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: c.text)),
+            ]),
           ),
-        ),
+          const SizedBox(width: 8),
+          Text(partido.marcador, style: AppTheme.score(c, size: 12, weight: FontWeight.w500).copyWith(color: c.textSecond)),
+          const SizedBox(width: 10),
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: fuerte ? c.pitchSoft : c.bg2,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              pred != null ? pred.resultado[0] : '-',
+              style: AppTheme.score(c, size: 12).copyWith(color: fuerte ? c.pitch : c.textSecond),
+            ),
+          ),
+        ]),
       ),
     );
   }
 }
 
-class _ProbBox extends StatelessWidget {
-  final String label;
-  final double prob;
-  final bool   highlight;
-  const _ProbBox(this.label, this.prob, this.highlight);
+class _CargandoLista extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(children: [
+          _Shimmer(c, width: 34, height: 34, radius: 10),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _Shimmer(c, width: 120, height: 10),
+            const SizedBox(height: 8),
+            _Shimmer(c, width: 70, height: 10),
+          ])),
+        ]),
+      ),
+    );
+  }
+}
+
+class _Shimmer extends StatelessWidget {
+  final AppColors c;
+  final double width, height;
+  final double radius;
+  const _Shimmer(this.c, {required this.width, required this.height, this.radius = 4});
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      Text(label,
-        style: TextStyle(
-          color: highlight ? AppTheme.primary : AppTheme.textSecond,
-          fontSize: 10, fontWeight: FontWeight.w500)),
-      const SizedBox(height: 2),
-      Text('${(prob * 100).toStringAsFixed(0)}%',
-        style: TextStyle(
-          color: highlight ? AppTheme.primary : AppTheme.textSecond,
-          fontSize: 12,
-          fontWeight: highlight ? FontWeight.w600 : FontWeight.normal)),
-    ]);
+    return Container(width: width, height: height,
+        decoration: BoxDecoration(color: c.bg2, borderRadius: BorderRadius.circular(radius)));
+  }
+}
+
+class _Vacio extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.event_busy_outlined, size: 40, color: c.textMuted),
+          const SizedBox(height: 14),
+          Text('Sin partidos hoy', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text)),
+          const SizedBox(height: 5),
+          Text('El scheduler corre a las 23:55.\nVolvé a revisar más tarde.',
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: c.textSecond)),
+        ]),
+      ),
+    );
+  }
+}
+
+class _Error extends StatelessWidget {
+  final String mensaje;
+  final VoidCallback onRetry;
+  const _Error({required this.mensaje, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: c.brickSoft, borderRadius: BorderRadius.circular(12)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.error_outline_rounded, color: c.brick, size: 22),
+            const SizedBox(height: 8),
+            Text('No pudimos conectar', style: TextStyle(fontWeight: FontWeight.w600, color: c.brick, fontSize: 13)),
+            const SizedBox(height: 4),
+            Text(mensaje, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: c.textSecond)),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: onRetry,
+              style: OutlinedButton.styleFrom(foregroundColor: c.brick, side: BorderSide(color: c.brick)),
+              child: const Text('Reintentar'),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 }

@@ -6,6 +6,8 @@ class Prediccion {
   final String resultado;
   final double confianza;
   final List<Mercado> mercados;
+  final List<Factor> factores;
+  final String? resumenH2h;
 
   const Prediccion({
     required this.partidoId,
@@ -15,6 +17,8 @@ class Prediccion {
     required this.resultado,
     required this.confianza,
     required this.mercados,
+    this.factores = const [],
+    this.resumenH2h,
   });
 
   // Computed properties
@@ -26,6 +30,16 @@ class Prediccion {
   List<Mercado> get mercadosTop =>
       mercados.where((m) => m.probabilidad >= 0.60).toList()
         ..sort((a, b) => b.probabilidad.compareTo(a.probabilidad));
+}
+
+// "favorece": "local" | "visitante" | "parejo" — mismo vocabulario que
+// devuelve backend/models/explicacion.py, sin traducir a otra cosa acá.
+class Factor {
+  final String factor;
+  final String favorece;
+  final String texto;
+
+  const Factor({required this.factor, required this.favorece, required this.texto});
 }
 
 class Mercado {

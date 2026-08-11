@@ -10,6 +10,7 @@ from backend.core.config import get_settings
 from backend.features.calculador import construir_features_partido
 from backend.features.dataset import FEATURES_ML as FEATURES
 from backend.models.calibracion import cargar_calibracion, calibrar_probabilidades
+from backend.models.explicacion import generar_resumen, generar_resumen_h2h
 log = logging.getLogger(__name__)
 
 class PrediccionService:
@@ -62,6 +63,18 @@ class PrediccionService:
 
         mercados = self._generar_mercados(prob_local, prob_empate, prob_visit)
 
+        factores, resumen_h2h = [], None
+        importancias_arr = self.modelo_service.feature_importances
+        if importancias_arr is not None:
+            importancias = dict(zip(FEATURES, importancias_arr))
+            factores = generar_resumen(
+                features, importancias,
+                partido.equipo_local.nombre, partido.equipo_visitante.nombre,
+            )
+            resumen_h2h = generar_resumen_h2h(
+                features, partido.equipo_local.nombre, partido.equipo_visitante.nombre,
+            )
+
         if persistir:
             self.prediccion_repo.crear(
                 partido_id = partido.id,
@@ -78,7 +91,9 @@ class PrediccionService:
             "prob_visitante": prob_visit,
             "prediccion": pred_label,
             "confianza": confianza,
-            "mercados_recomentados": mercados,
+            "mercados_recomendados": mercados,
+            "factores": factores,
+            "resumen_h2h": resumen_h2h,
         }
 
     def _generar_mercados(self, prob_l: float,

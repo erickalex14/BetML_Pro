@@ -53,6 +53,8 @@ class PrediccionModel extends Prediccion {
     required super.resultado,
     required super.confianza,
     required super.mercados,
+    super.factores,
+    super.resumenH2h,
   });
 
   factory PrediccionModel.fromJson(Map<String, dynamic> json) {
@@ -66,6 +68,22 @@ class PrediccionModel extends Prediccion {
       mercados:      (json['mercados_recomendados'] as List? ?? [])
                      .map((m) => MercadoModel.fromJson(m))
                      .toList(),
+      factores:      (json['factores'] as List? ?? [])
+                     .map((f) => FactorModel.fromJson(f))
+                     .toList(),
+      resumenH2h:    json['resumen_h2h'] as String?,
+    );
+  }
+}
+
+class FactorModel extends Factor {
+  const FactorModel({required super.factor, required super.favorece, required super.texto});
+
+  factory FactorModel.fromJson(Map<String, dynamic> json) {
+    return FactorModel(
+      factor:    json['factor'] ?? '',
+      favorece:  json['favorece'] ?? 'parejo',
+      texto:     json['texto'] ?? '',
     );
   }
 }

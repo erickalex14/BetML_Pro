@@ -15,6 +15,9 @@ dependencies:
   
   # Gestión de estado
   provider: ^6.1.2
+
+  # Storage seguro del JWT
+  flutter_secure_storage: ^9.2.2
   
   # Navegación
   go_router: ^14.0.0
@@ -29,6 +32,21 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/logos/
+
+flutter_launcher_icons:
+  image_path: "assets/logos/logo_icon.png"
+  android: true
+  ios: true
+  web:
+    generate: true
+    image_path: "assets/logos/logo_icon.png"
+    background_color: "#01062B"
+    theme_color: "#01062B"
+  windows:
+    generate: true

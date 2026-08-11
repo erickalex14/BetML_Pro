@@ -23,6 +23,7 @@ from backend.models.mlp import cargar_mlp, predecir_mlp
 from backend.models.lstm import cargar_lstm, predecir_lstm
 from backend.models.gnn import cargar_gnn, predecir_gnn
 from backend.models.calibracion import cargar_calibracion, calibrar_probabilidades
+from backend.models.explicacion import generar_resumen, generar_resumen_h2h
 from backend.features.dataset import FEATURES_ML
 from backend.repositories.prediccion_repo import PrediccionRepository
 import pandas as pd
@@ -108,6 +109,20 @@ def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) ->
     pred_label = etiquetas[idx_max]
     confianza = round(float(proba_combinada[idx_max]), 4)
 
+    # "por qué" — mismas features que vio el modelo + importancia real del
+    # árbol, no un LLM inventando texto. Solo si XGBoost cargó (es el único
+    # modelo con feature_importances_ interpretable de esta forma).
+    factores, resumen_h2h = [], None
+    if modelo_xgb is not None:
+        importancias = dict(zip(FEATURES_ML, modelo_xgb.feature_importances_))
+        factores = generar_resumen(
+            features, importancias,
+            partido.equipo_local.nombre, partido.equipo_visitante.nombre,
+        )
+        resumen_h2h = generar_resumen_h2h(
+            features, partido.equipo_local.nombre, partido.equipo_visitante.nombre,
+        )
+
     if persistir:
         repo = PrediccionRepository(db)
         repo.crear(
@@ -143,4 +158,6 @@ def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) ->
              "prob_visitante": round(float(p[2]), 4)}
             for (nombre, p, _), w in zip(predicciones, pesos)
         ],
+        "factores": factores,
+        "resumen_h2h": resumen_h2h,
     }

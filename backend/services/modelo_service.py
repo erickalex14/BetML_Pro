@@ -34,6 +34,10 @@ class ModeloService:
     def disponible(self) -> bool:
         return self._modelo is not None
 
+    @property
+    def feature_importances(self) -> np.ndarray | None:
+        return self._modelo.feature_importances_ if self.disponible else None
+
 
 
 

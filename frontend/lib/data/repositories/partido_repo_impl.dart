@@ -1,4 +1,4 @@
-import 'package:http/http.dart' as http;
+import '../../core/http/auth_client.dart';
 import '../../domain/entities/partido.dart';
 import '../../domain/entities/prediccion.dart';
 import '../../domain/repositories/partido_repository.dart';
@@ -10,10 +10,11 @@ class PartidoRepositoryImpl implements PartidoRepository {
 
   const PartidoRepositoryImpl(this._dataSource);
 
-  // Factory — crea la instancia con el cliente HTTP por defecto
+  // Factory — crea la instancia con el cliente HTTP autenticado (todos
+  // estos endpoints están bajo JWT, ver backend/api/main.py)
   factory PartidoRepositoryImpl.create() {
     return PartidoRepositoryImpl(
-      PartidoRemoteDataSource(http.Client()),
+      PartidoRemoteDataSource(AuthClient()),
     );
   }
 
