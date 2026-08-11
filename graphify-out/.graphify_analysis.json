@@ -1,26 +1,157 @@
 {
   "communities": {
     "0": [
+      "backend_models_calibracion_factor_confianza",
+      "backend_models_calibracion_rationale_67",
+      "backend_models_kelly",
+      "backend_models_kelly_analizar_mercados_kelly",
+      "backend_models_kelly_calcular_kelly",
+      "backend_models_kelly_construir_lista_mercados",
+      "backend_models_kelly_expandir_over_under",
+      "backend_models_kelly_portfolio",
+      "backend_models_kelly_portfolio_kelly_portfolio",
+      "backend_models_kelly_portfolio_probabilidad_ruina",
+      "backend_models_kelly_portfolio_rationale_1",
+      "backend_models_kelly_portfolio_rationale_30",
+      "backend_models_kelly_portfolio_rationale_92",
+      "backend_models_kelly_rationale_104",
+      "backend_models_kelly_rationale_131",
+      "backend_models_kelly_rationale_14",
+      "backend_models_kelly_rationale_206",
+      "backend_models_kelly_rationale_282",
+      "backend_models_kelly_resultado_vacio",
+      "backend_models_kelly_simular_estrategias",
+      "backend_models_montecarlo",
+      "backend_models_montecarlo_cargar_rho",
+      "backend_models_montecarlo_grid_marcadores",
+      "backend_models_montecarlo_handicap_asiatico",
+      "backend_models_montecarlo_py_ndarray",
+      "backend_models_montecarlo_rationale_279",
+      "backend_models_montecarlo_rationale_300",
+      "backend_models_montecarlo_rationale_336",
+      "backend_models_montecarlo_rationale_370",
+      "backend_models_montecarlo_rationale_41",
+      "backend_models_montecarlo_rationale_49",
+      "backend_models_montecarlo_rationale_63",
+      "backend_models_montecarlo_rationale_94",
+      "backend_models_montecarlo_simular_con_prediccion",
+      "backend_models_montecarlo_simular_medio_tiempo",
+      "backend_models_montecarlo_simular_mercado_conteo",
+      "backend_models_montecarlo_simular_partido",
+      "backend_models_montecarlo_tau_dixon_coles",
+      "backend_models_parlay",
+      "backend_models_parlay_calcular_parlay_kelly",
+      "backend_models_parlay_calcular_prediccion_combinada",
+      "backend_models_parlay_rationale_1",
+      "backend_models_parlay_rationale_20",
+      "backend_models_parlay_rationale_41",
+      "backend_models_test_kelly",
+      "backend_models_test_montecarlo",
+      "tests_test_kelly",
+      "tests_test_kelly_rationale_1",
+      "tests_test_kelly_test_analizar_mercados_extendido_con_montecarlo",
+      "tests_test_kelly_test_analizar_mercados_solo_1x2_sin_montecarlo",
+      "tests_test_kelly_test_factor_confianza_reduce_stake_sin_cambiar_value_bet",
+      "tests_test_kelly_test_kelly_entradas_invalidas_no_explota",
+      "tests_test_kelly_test_kelly_portfolio_correlacionado_no_excede_suma_ingenua",
+      "tests_test_kelly_test_kelly_sin_valor_no_apuesta",
+      "tests_test_kelly_test_kelly_value_bet_positivo",
+      "tests_test_kelly_test_parlay_kelly_coincide_con_kelly_directo_sobre_valores_combinados",
+      "tests_test_kelly_test_parlay_rechaza_menos_de_dos_selecciones",
+      "tests_test_kelly_test_prediccion_combinada_es_producto_de_probabilidades",
+      "tests_test_kelly_test_probabilidad_ruina_escala_con_el_stake",
+      "tests_test_montecarlo",
+      "tests_test_montecarlo_rationale_1",
+      "tests_test_montecarlo_test_1x2_suma_uno",
+      "tests_test_montecarlo_test_corners_y_tarjetas_opcionales",
+      "tests_test_montecarlo_test_dixon_coles_direccion_correcta",
+      "tests_test_montecarlo_test_escenarios_crudos_consistentes_con_agregados",
+      "tests_test_montecarlo_test_grid_normalizada_y_sin_negativos",
+      "tests_test_montecarlo_test_handicap_lineas_enteras_permiten_push_medias_no",
+      "tests_test_montecarlo_test_primer_tiempo_suma_uno_y_tiene_menos_goles_que_el_total"
+    ],
+    "1": [
+      "backend_api_main",
+      "backend_api_main_health",
+      "backend_api_main_py_get",
+      "backend_api_main_root",
+      "backend_api_main_startup",
+      "backend_api_routes_auth",
+      "backend_api_routes_auth_login",
+      "backend_api_routes_auth_loginrequest",
+      "backend_api_routes_auth_me",
+      "backend_api_routes_auth_py_basemodel",
+      "backend_api_routes_auth_py_get",
+      "backend_api_routes_auth_py_post",
+      "backend_api_routes_auth_py_session",
+      "backend_api_routes_auth_registro",
+      "backend_api_routes_auth_registrorequest",
+      "backend_core_auth",
+      "backend_core_auth_crear_token",
+      "backend_core_auth_hash_password",
+      "backend_core_auth_rationale_1",
+      "backend_core_auth_rationale_30",
+      "backend_core_auth_verificar_password",
+      "backend_core_auth_verificar_token",
+      "backend_core_config",
+      "backend_core_config_config",
+      "backend_core_config_get_settings",
+      "backend_core_config_settings",
+      "backend_core_deps",
+      "backend_core_deps_get_usuario_actual",
+      "backend_core_deps_py_session",
+      "backend_core_deps_rationale_1",
+      "backend_db_modelos_usuario",
+      "backend_db_modelos_usuario_repr",
+      "backend_services_modelo_service",
+      "backend_services_modelo_service_get_modelo_service",
+      "backend_services_modelo_service_modeloservice",
+      "backend_services_modelo_service_modeloservice_cargar_modelo",
+      "backend_services_modelo_service_modeloservice_disponible",
+      "backend_services_modelo_service_modeloservice_init",
+      "backend_services_modelo_service_modeloservice_predecir_proba",
+      "backend_services_modelo_service_modeloservice_recargar",
+      "backend_services_modelo_service_py_dataframe",
+      "backend_services_modelo_service_rationale_12",
+      "basesettings",
+      "httpauthorizationcredentials",
+      "ndarray",
+      "on_event",
+      "tests_test_auth",
+      "tests_test_auth_db",
+      "tests_test_auth_py_fixture",
+      "tests_test_auth_rationale_1",
+      "tests_test_auth_test_get_usuario_actual_con_token_invalido_da_401",
+      "tests_test_auth_test_get_usuario_actual_con_token_valido",
+      "tests_test_auth_test_hash_password_no_guarda_texto_plano",
+      "tests_test_auth_test_login_password_incorrecta_da_401",
+      "tests_test_auth_test_registro_login_flujo_completo",
+      "tests_test_auth_test_token_invalido_rechazado",
+      "tests_test_auth_test_token_roundtrip"
+    ],
+    "2": [
+      "backend_db_buscarecuador",
       "backend_db_database",
       "backend_db_database_base",
       "backend_db_database_crear_tablas",
       "backend_db_modelos",
       "backend_db_modelos_equipo",
       "backend_db_modelos_equipo_repr",
-      "backend_db_modelos_estadisticajugador",
-      "backend_db_modelos_estadisticajugador_repr",
       "backend_db_modelos_estadisticapartido",
       "backend_db_modelos_estadisticapartido_repr",
-      "backend_db_modelos_estadisticasofascore",
-      "backend_db_modelos_estadisticasofascore_repr",
       "backend_db_modelos_liga",
       "backend_db_modelos_liga_repr",
-      "backend_db_modelos_partido",
-      "backend_db_modelos_partido_repr",
-      "backend_db_modelos_rationale_121",
       "backend_db_resumen_bd",
       "backend_db_resumen_por_liga",
       "backend_db_verificar_bd",
+      "backend_pipeline_api_client",
+      "backend_pipeline_api_client_fecha_hoy",
+      "backend_pipeline_api_client_get",
+      "backend_pipeline_api_client_get_estadisticas_equipo",
+      "backend_pipeline_api_client_get_fixtures_hoy",
+      "backend_pipeline_api_client_get_h2h",
+      "backend_pipeline_api_client_get_standings",
+      "backend_pipeline_check_temporada",
       "backend_pipeline_config",
       "backend_pipeline_guardador",
       "backend_pipeline_guardador_guardar_partido",
@@ -28,6 +159,7 @@
       "backend_pipeline_guardador_rationale_70",
       "backend_pipeline_guardador_upsert_equipo",
       "backend_pipeline_job_estadisticas",
+      "backend_pipeline_job_estadisticas_correr_job_estadisticas",
       "backend_pipeline_job_estadisticas_parsear_estadisticas",
       "backend_pipeline_job_historico",
       "backend_pipeline_job_historico_correr_job_historico",
@@ -35,74 +167,30 @@
       "backend_pipeline_job_temporada_actual_correr_job_temporada_actual",
       "backend_pipeline_job_temporada_actual_parsear_estadisticas",
       "backend_pipeline_pipeline_dia",
-      "backend_pipeline_sofascore_correr_historico_completo",
-      "backend_pipeline_sofascore_correr_historico_completo_main",
-      "backend_pipeline_sofascore_guardador_sofascore",
-      "backend_pipeline_sofascore_guardador_sofascore_guardar_jugadores",
-      "backend_pipeline_sofascore_guardador_sofascore_guardar_stats_sofascore",
-      "backend_pipeline_sofascore_guardador_sofascore_py_session",
-      "backend_pipeline_sofascore_guardador_sofascore_rationale_12",
-      "backend_pipeline_sofascore_guardador_sofascore_rationale_38",
-      "backend_pipeline_sofascore_job_historico_sofascore",
-      "backend_pipeline_sofascore_job_historico_sofascore_buscar_partido",
-      "backend_pipeline_sofascore_job_historico_sofascore_correr_job_historico_sofascore",
-      "backend_pipeline_sofascore_job_historico_sofascore_py_partido",
-      "backend_pipeline_sofascore_job_sofascore",
-      "backend_pipeline_sofascore_job_sofascore_buscar_partido_bd",
-      "backend_pipeline_sofascore_job_sofascore_correr_job_sofascore_diario",
-      "backend_pipeline_sofascore_job_sofascore_py_partido",
-      "backend_pipeline_sofascore_job_sofascore_py_session",
-      "backend_pipeline_sofascore_job_sofascore_rationale_130",
-      "backend_pipeline_sofascore_job_sofascore_rationale_27",
-      "backend_pipeline_sofascore_parser",
-      "backend_pipeline_sofascore_parser_build_stats_dict",
-      "backend_pipeline_sofascore_parser_extraer_valor",
-      "backend_pipeline_sofascore_parser_limpiar_valor",
-      "backend_pipeline_sofascore_parser_parsear_jugadores",
-      "backend_pipeline_sofascore_parser_parsear_stats_partido",
-      "backend_pipeline_sofascore_parser_rationale_148",
-      "backend_pipeline_sofascore_parser_rationale_29",
-      "backend_pipeline_sofascore_parser_rationale_57",
-      "backend_pipeline_sofascore_parser_rationale_9",
-      "backend_pipeline_sofascore_parser_rationale_94",
+      "backend_pipeline_pipeline_dia_correr_pipeline",
+      "backend_pipeline_pipeline_dia_correr_pipeline_fecha",
+      "backend_pipeline_pipeline_dia_poblar_ligas",
+      "backend_pipeline_pipeline_dia_rationale_17",
+      "backend_pipeline_pipeline_dia_rationale_59",
+      "backend_pipeline_test_conexion",
+      "backend_pipeline_test_conexion_main",
       "backend_repositories_partido_repo",
       "backend_services_partido_service",
       "datetime",
       "declarativebase"
     ],
-    "1": [
-      "backend_api_main",
-      "backend_api_main_health",
-      "backend_api_main_root",
-      "backend_api_main_startup",
+    "3": [
       "backend_api_routes_partidos",
       "backend_api_routes_partidos_detalle_partido",
       "backend_api_routes_partidos_partidos_hoy",
       "backend_api_routes_partidos_partidos_liga",
       "backend_api_routes_partidos_prediccion_partido",
       "backend_api_routes_partidos_py_session",
-      "backend_api_routes_predicciones",
-      "backend_api_routes_predicciones_kelly_partido",
-      "backend_api_routes_predicciones_montecarlo_partido",
-      "backend_api_routes_predicciones_predicciones_hoy",
-      "backend_api_routes_predicciones_py_session",
-      "backend_api_routes_predicciones_rationale_26",
-      "backend_api_routes_predicciones_rationale_86",
-      "backend_models_kelly",
-      "backend_models_kelly_analizar_mercados_kelly",
-      "backend_models_kelly_calcular_kelly",
-      "backend_models_kelly_rationale_12",
-      "backend_models_kelly_rationale_175",
-      "backend_models_kelly_rationale_97",
-      "backend_models_kelly_resultado_vacio",
-      "backend_models_kelly_simular_estrategias",
-      "backend_models_montecarlo",
-      "backend_models_montecarlo_rationale_13",
-      "backend_models_montecarlo_rationale_154",
-      "backend_models_montecarlo_simular_con_prediccion",
-      "backend_models_montecarlo_simular_partido",
-      "backend_models_test_kelly",
-      "backend_models_test_montecarlo",
+      "backend_api_routes_stats",
+      "backend_api_routes_stats_py_session",
+      "backend_api_routes_stats_rationale_11",
+      "backend_api_routes_stats_stats_modelo",
+      "backend_db_database_get_db",
       "backend_repositories_partido_repo_partidorepository",
       "backend_repositories_partido_repo_partidorepository_acttualizar",
       "backend_repositories_partido_repo_partidorepository_get_h2h",
@@ -126,25 +214,15 @@
       "backend_services_partido_service_py_session",
       "backend_services_partido_service_rationale_11",
       "backend_services_partido_service_rationale_22",
-      "backend_services_prediccion_service_prediccionservice",
-      "backend_services_prediccion_service_prediccionservice_generar_mercados",
-      "backend_services_prediccion_service_prediccionservice_predecir",
-      "backend_services_prediccion_service_prediccionservice_predecir_hoy",
-      "backend_services_prediccion_service_py_partido",
-      "backend_services_prediccion_service_rationale_15",
-      "backend_services_prediccion_service_rationale_73",
       "date",
-      "frontend_lib_data_datasources_partido_remote_ds_get",
-      "on_event"
+      "frontend_lib_data_datasources_partido_remote_ds_get"
     ],
-    "2": [
+    "4": [
       "client",
       "core_constants_dart",
       "core_errors_failures_dart",
       "dart_convert",
       "datasources_partido_remote_ds_dart",
-      "domain_entities_partido_dart",
-      "domain_entities_prediccion_dart",
       "domain_repositories_partido_repository_dart",
       "entities_partido_dart",
       "entities_prediccion_dart",
@@ -155,10 +233,6 @@
       "frontend_lib_data_datasources_partido_remote_ds_getprediccioneshoy",
       "frontend_lib_data_datasources_partido_remote_ds_getstatsmodelo",
       "frontend_lib_data_datasources_partido_remote_ds_partidoremotedatasource",
-      "frontend_lib_data_models_partido_model",
-      "frontend_lib_data_models_partido_model_fromjson",
-      "frontend_lib_data_models_partido_model_partidomodel",
-      "frontend_lib_data_models_partido_model_prediccionmodel",
       "frontend_lib_data_repositories_partido_repo_impl",
       "frontend_lib_data_repositories_partido_repo_impl_create",
       "frontend_lib_data_repositories_partido_repo_impl_datasource",
@@ -179,159 +253,156 @@
       "partidorepository",
       "repositories_partido_repository_dart"
     ],
-    "3": [
-      "backend_api_routes_stats",
-      "backend_api_routes_stats_py_session",
-      "backend_api_routes_stats_rationale_11",
-      "backend_api_routes_stats_stats_modelo",
-      "backend_core_config",
-      "backend_core_config_config",
-      "backend_core_config_get_settings",
-      "backend_core_config_settings",
-      "backend_db_database_get_db",
+    "5": [
+      "backend_db_modelos_odds",
+      "backend_db_modelos_odds_repr",
+      "backend_db_modelos_rationale_294",
+      "backend_models_odds_service",
+      "backend_models_odds_service_rationale_1",
+      "backend_pipeline_job_odds",
+      "backend_pipeline_job_odds_correr_job_odds",
+      "backend_pipeline_job_odds_linea_a_clave",
+      "backend_pipeline_job_odds_parsear_1x2_periodo",
+      "backend_pipeline_job_odds_parsear_bookmaker",
+      "backend_pipeline_job_odds_parsear_btts",
+      "backend_pipeline_job_odds_parsear_handicap",
+      "backend_pipeline_job_odds_parsear_match_winner",
+      "backend_pipeline_job_odds_parsear_over_under",
+      "backend_pipeline_job_odds_rationale_1",
+      "backend_pipeline_job_odds_rationale_31",
+      "backend_pipeline_job_odds_rationale_90",
+      "backend_scheduler_scheduler",
+      "backend_scheduler_scheduler_iniciar_scheduler",
+      "backend_scheduler_scheduler_job_cerrar_predicciones",
+      "backend_scheduler_scheduler_job_estadisticas",
+      "backend_scheduler_scheduler_job_fixtures_manana",
+      "backend_scheduler_scheduler_job_odds",
+      "backend_scheduler_scheduler_job_pipeline_dia",
+      "backend_scheduler_scheduler_job_reentrenar_modelos",
+      "backend_scheduler_scheduler_job_sofascore_diario",
+      "backend_scheduler_scheduler_rationale_111",
+      "backend_scheduler_scheduler_rationale_18",
+      "backend_scheduler_scheduler_rationale_35",
+      "backend_scheduler_scheduler_rationale_49",
+      "backend_scheduler_scheduler_rationale_64",
+      "backend_scheduler_scheduler_rationale_79",
+      "backend_scheduler_scheduler_rationale_95"
+    ],
+    "6": [
+      "backend_features_dataset_generar_dataset",
+      "backend_features_dataset_py_dataframe",
+      "backend_features_grafo",
+      "backend_features_grafo_construir_grafo",
+      "backend_features_grafo_rationale_1",
+      "backend_features_grafo_rationale_37",
+      "backend_models_entrenador_entrenar_modelo",
+      "backend_models_entrenador_guardar_modelo",
+      "backend_models_entrenador_py_dataframe",
+      "backend_models_gnn",
+      "backend_models_gnn_cargar_gnn",
+      "backend_models_gnn_entrenar_gnn",
+      "backend_models_gnn_gnnequipojugador",
+      "backend_models_gnn_gnnequipojugador_embeddings",
+      "backend_models_gnn_gnnequipojugador_forward",
+      "backend_models_gnn_gnnequipojugador_init",
+      "backend_models_gnn_guardar_gnn",
+      "backend_models_gnn_pares_entrenamiento",
+      "backend_models_gnn_py_path",
+      "backend_models_gnn_rationale_1",
+      "backend_models_gnn_rationale_77",
+      "backend_models_gnn_tipos_arista",
+      "backend_models_lstm_entrenar_lstm",
+      "backend_models_montecarlo_ajustar_rho_dixon_coles",
+      "backend_models_montecarlo_rationale_388",
+      "backend_pipeline_job_reentrenar_modelos",
+      "backend_pipeline_job_reentrenar_modelos_correr_reentrenamiento_completo",
+      "backend_pipeline_job_reentrenar_modelos_rationale_1",
+      "heterodata",
+      "xgbclassifier"
+    ],
+    "7": [
+      "backend_models_calibracion",
+      "backend_models_calibracion_ajustar_calibracion",
+      "backend_models_calibracion_calibrar_probabilidades",
+      "backend_models_calibracion_cargar_calibracion",
+      "backend_models_calibracion_guardar_calibracion",
+      "backend_models_calibracion_py_ndarray",
+      "backend_models_calibracion_py_path",
+      "backend_models_calibracion_rationale_1",
+      "backend_models_calibracion_rationale_55",
+      "backend_models_ensemble",
+      "backend_models_ensemble_predecir_ensemble",
+      "backend_models_ensemble_py_session",
+      "backend_models_ensemble_rationale_1",
+      "backend_models_ensemble_rationale_30",
+      "backend_models_entrenador",
+      "backend_models_entrenador_cargar_metricas_xgboost",
+      "backend_models_entrenador_cargar_modelo",
+      "backend_models_gnn_predecir_gnn",
+      "backend_models_mlp_predecir_mlp",
+      "backend_models_mlp_rationale_271",
+      "backend_models_predictor",
+      "backend_models_predictor_predecir_partido",
+      "backend_models_predictor_predecir_partidos_hoy",
+      "backend_models_predictor_py_session",
+      "backend_models_predictor_rationale_112",
+      "backend_models_predictor_rationale_15"
+    ],
+    "8": [
       "backend_db_modelos_prediccion",
       "backend_db_modelos_prediccion_repr",
       "backend_repositories_prediccion_repo",
       "backend_repositories_prediccion_repo_prediccionrepository",
+      "backend_repositories_prediccion_repo_prediccionrepository_cerrar_prediccion",
       "backend_repositories_prediccion_repo_prediccionrepository_crear",
       "backend_repositories_prediccion_repo_prediccionrepository_get_por_partido",
       "backend_repositories_prediccion_repo_prediccionrepository_get_stats",
       "backend_repositories_prediccion_repo_prediccionrepository_init",
       "backend_repositories_prediccion_repo_prediccionrepository_marcar_resultado",
-      "backend_repositories_prediccion_repo_py_prediccion",
       "backend_repositories_prediccion_repo_py_session",
-      "backend_services_modelo_service",
-      "backend_services_modelo_service_get_modelo_service",
-      "backend_services_modelo_service_modeloservice",
-      "backend_services_modelo_service_modeloservice_cargar_modelo",
-      "backend_services_modelo_service_modeloservice_disponible",
-      "backend_services_modelo_service_modeloservice_init",
-      "backend_services_modelo_service_modeloservice_predecir_proba",
-      "backend_services_modelo_service_modeloservice_recargar",
-      "backend_services_modelo_service_py_dataframe",
-      "backend_services_modelo_service_rationale_12",
-      "backend_services_prediccion_service",
+      "backend_repositories_prediccion_repo_rationale_80",
+      "backend_repositories_prediccion_repo_rationale_93",
       "backend_services_prediccion_service_prediccionservice_init",
       "backend_services_prediccion_service_py_session",
-      "basesettings",
-      "ndarray"
+      "tests_test_mlops",
+      "tests_test_mlops_dos_partidos_ft",
+      "tests_test_mlops_partido_ft",
+      "tests_test_mlops_py_fixture",
+      "tests_test_mlops_rationale_1",
+      "tests_test_mlops_rationale_13",
+      "tests_test_mlops_rationale_53",
+      "tests_test_mlops_test_job_cierra_mercado_no_1x2",
+      "tests_test_mlops_test_job_cierra_prediccion_pendiente_con_resultado_real",
+      "tests_test_mlops_test_stats_por_mercado_no_mezcla_fuentes"
     ],
-    "4": [
-      "backend_features_calculador",
-      "backend_features_calculador_calcular_forma",
-      "backend_features_calculador_calcular_h2h",
-      "backend_features_calculador_calcular_rating_jugadores",
-      "backend_features_calculador_calcular_stats_sofascore",
-      "backend_features_calculador_calcular_win_rate",
-      "backend_features_calculador_construir_features_partido",
-      "backend_features_calculador_py_partido",
-      "backend_features_calculador_py_session",
-      "backend_features_calculador_rationale_11",
-      "backend_features_calculador_rationale_166",
-      "backend_features_calculador_rationale_283",
-      "backend_features_calculador_rationale_75",
-      "backend_features_dataset",
-      "backend_features_dataset_generar_dataset",
-      "backend_features_dataset_py_dataframe",
-      "backend_models_entrenador",
-      "backend_models_entrenador_cargar_modelo",
-      "backend_models_entrenador_entrenar_modelo",
-      "backend_models_entrenador_guardar_modelo",
-      "backend_models_entrenador_py_dataframe",
-      "backend_models_predictor",
-      "backend_models_predictor_predecir_partido",
-      "backend_models_predictor_predecir_partidos_hoy",
-      "backend_models_predictor_py_partido",
-      "backend_models_predictor_py_session",
-      "backend_models_predictor_rationale_104",
-      "backend_models_predictor_rationale_14",
-      "xgbclassifier"
+    "9": [
+      "backend_features_calculador_obtener_secuencia_equipo",
+      "backend_features_calculador_rationale_14",
+      "backend_models_lstm",
+      "backend_models_lstm_cargar_lstm",
+      "backend_models_lstm_codificadortemporal",
+      "backend_models_lstm_codificadortemporal_forward",
+      "backend_models_lstm_codificadortemporal_init",
+      "backend_models_lstm_datasetsecuencias",
+      "backend_models_lstm_datasetsecuencias_getitem",
+      "backend_models_lstm_datasetsecuencias_init",
+      "backend_models_lstm_datasetsecuencias_len",
+      "backend_models_lstm_guardar_lstm",
+      "backend_models_lstm_pad_izquierda",
+      "backend_models_lstm_predecir_lstm",
+      "backend_models_lstm_py_dataframe",
+      "backend_models_lstm_py_dataset",
+      "backend_models_lstm_py_ndarray",
+      "backend_models_lstm_py_path",
+      "backend_models_lstm_rationale_1",
+      "backend_models_lstm_rationale_101",
+      "backend_models_lstm_rationale_111",
+      "backend_models_lstm_rationale_53",
+      "backend_models_lstm_redlstm",
+      "backend_models_lstm_redlstm_forward",
+      "backend_models_lstm_redlstm_init"
     ],
-    "5": [
-      "backend_pipeline_sofascore_cliente",
-      "backend_pipeline_sofascore_cliente_rationale_168",
-      "backend_pipeline_sofascore_cliente_rationale_184",
-      "backend_pipeline_sofascore_cliente_rationale_218",
-      "backend_pipeline_sofascore_cliente_rationale_226",
-      "backend_pipeline_sofascore_cliente_rationale_277",
-      "backend_pipeline_sofascore_cliente_rationale_286",
-      "backend_pipeline_sofascore_cliente_rationale_293",
-      "backend_pipeline_sofascore_cliente_rationale_302",
-      "backend_pipeline_sofascore_cliente_rationale_312",
-      "backend_pipeline_sofascore_cliente_rationale_319",
-      "backend_pipeline_sofascore_cliente_rationale_324",
-      "backend_pipeline_sofascore_cliente_sofascorecliente",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_cerrar",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_enter",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_exit",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_get",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_get_lineups_partido",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_get_partidos_fecha",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_get_partidos_liga_temporada",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_get_stats_partido",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_get_temporadas_liga",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_iniciar",
-      "backend_pipeline_sofascore_cliente_sofascorecliente_init",
-      "backend_pipeline_sofascore_debug_stats",
-      "backend_pipeline_sofascore_debug_stats_main",
-      "backend_pipeline_sofascore_test_sofascore",
-      "backend_pipeline_sofascore_test_sofascore_main"
-    ],
-    "6": [
-      "backend_db_buscarecuador",
-      "backend_pipeline_api_client",
-      "backend_pipeline_api_client_fecha_hoy",
-      "backend_pipeline_api_client_get",
-      "backend_pipeline_api_client_get_estadisticas_equipo",
-      "backend_pipeline_api_client_get_fixtures_hoy",
-      "backend_pipeline_api_client_get_h2h",
-      "backend_pipeline_api_client_get_standings",
-      "backend_pipeline_check_temporada",
-      "backend_pipeline_job_estadisticas_correr_job_estadisticas",
-      "backend_pipeline_pipeline_dia_correr_pipeline",
-      "backend_pipeline_pipeline_dia_correr_pipeline_fecha",
-      "backend_pipeline_pipeline_dia_poblar_ligas",
-      "backend_pipeline_pipeline_dia_rationale_17",
-      "backend_pipeline_pipeline_dia_rationale_59",
-      "backend_pipeline_test_conexion",
-      "backend_pipeline_test_conexion_main",
-      "backend_scheduler_scheduler",
-      "backend_scheduler_scheduler_iniciar_scheduler",
-      "backend_scheduler_scheduler_job_estadisticas",
-      "backend_scheduler_scheduler_job_fixtures_manana",
-      "backend_scheduler_scheduler_job_pipeline_dia",
-      "backend_scheduler_scheduler_rationale_18",
-      "backend_scheduler_scheduler_rationale_32",
-      "backend_scheduler_scheduler_rationale_47"
-    ],
-    "7": [
-      "double",
-      "double_get",
-      "frontend_lib_data_models_partido_model_mercadomodel",
-      "frontend_lib_domain_entities_prediccion",
-      "frontend_lib_domain_entities_prediccion_accuracy",
-      "frontend_lib_domain_entities_prediccion_accuracystr",
-      "frontend_lib_domain_entities_prediccion_acertadas",
-      "frontend_lib_domain_entities_prediccion_altaconfianza",
-      "frontend_lib_domain_entities_prediccion_confianza",
-      "frontend_lib_domain_entities_prediccion_falladas",
-      "frontend_lib_domain_entities_prediccion_label",
-      "frontend_lib_domain_entities_prediccion_mercado",
-      "frontend_lib_domain_entities_prediccion_mercados",
-      "frontend_lib_domain_entities_prediccion_mercadostop",
-      "frontend_lib_domain_entities_prediccion_partidoid",
-      "frontend_lib_domain_entities_prediccion_pendientes",
-      "frontend_lib_domain_entities_prediccion_prediccion",
-      "frontend_lib_domain_entities_prediccion_probabilidad",
-      "frontend_lib_domain_entities_prediccion_probempate",
-      "frontend_lib_domain_entities_prediccion_problocal",
-      "frontend_lib_domain_entities_prediccion_probmax",
-      "frontend_lib_domain_entities_prediccion_probvisitante",
-      "frontend_lib_domain_entities_prediccion_resultado",
-      "frontend_lib_domain_entities_prediccion_seleccion",
-      "frontend_lib_domain_entities_prediccion_total"
-    ],
-    "8": [
+    "10": [
       "frontend_lib_domain_entities_partido",
       "frontend_lib_domain_entities_partido_enjuego",
       "frontend_lib_domain_entities_partido_estado",
@@ -357,7 +428,32 @@
       "int",
       "prediccion_dart"
     ],
-    "9": [
+    "11": [
+      "double",
+      "double_get",
+      "frontend_lib_domain_entities_prediccion",
+      "frontend_lib_domain_entities_prediccion_accuracy",
+      "frontend_lib_domain_entities_prediccion_accuracystr",
+      "frontend_lib_domain_entities_prediccion_acertadas",
+      "frontend_lib_domain_entities_prediccion_altaconfianza",
+      "frontend_lib_domain_entities_prediccion_confianza",
+      "frontend_lib_domain_entities_prediccion_falladas",
+      "frontend_lib_domain_entities_prediccion_label",
+      "frontend_lib_domain_entities_prediccion_mercados",
+      "frontend_lib_domain_entities_prediccion_mercadostop",
+      "frontend_lib_domain_entities_prediccion_partidoid",
+      "frontend_lib_domain_entities_prediccion_pendientes",
+      "frontend_lib_domain_entities_prediccion_prediccion",
+      "frontend_lib_domain_entities_prediccion_probabilidad",
+      "frontend_lib_domain_entities_prediccion_probempate",
+      "frontend_lib_domain_entities_prediccion_problocal",
+      "frontend_lib_domain_entities_prediccion_probmax",
+      "frontend_lib_domain_entities_prediccion_probvisitante",
+      "frontend_lib_domain_entities_prediccion_resultado",
+      "frontend_lib_domain_entities_prediccion_seleccion",
+      "frontend_lib_domain_entities_prediccion_total"
+    ],
+    "12": [
       "any",
       "bool",
       "flutter",
@@ -379,7 +475,133 @@
       "xctest",
       "xctestcase"
     ],
-    "10": [
+    "13": [
+      "backend_models_parser_imagen",
+      "backend_models_parser_imagen_analizar_captura_parley",
+      "backend_models_parser_imagen_clasificar_over_under",
+      "backend_models_parser_imagen_detectar_categoria",
+      "backend_models_parser_imagen_es_btts",
+      "backend_models_parser_imagen_es_resultado_partido",
+      "backend_models_parser_imagen_extraer_texto",
+      "backend_models_parser_imagen_get_lector",
+      "backend_models_parser_imagen_linea_a_clave",
+      "backend_models_parser_imagen_rationale_1",
+      "backend_models_parser_imagen_rationale_89",
+      "tests_test_parser_imagen",
+      "tests_test_parser_imagen_rationale_1",
+      "tests_test_parser_imagen_rationale_46",
+      "tests_test_parser_imagen_test_btts",
+      "tests_test_parser_imagen_test_linea_a_clave_coincide_con_montecarlo",
+      "tests_test_parser_imagen_test_no_usa_partido_viejo_como_si_fuera_el_de_la_imagen",
+      "tests_test_parser_imagen_test_over_under_sin_numero_no_matchea",
+      "tests_test_parser_imagen_test_over_under_tolera_espacios_comidos_por_ocr",
+      "tests_test_parser_imagen_test_resultado_partido_tolera_ruido_de_ocr"
+    ],
+    "14": [
+      "backend_pipeline_sofascore_cliente",
+      "backend_pipeline_sofascore_cliente_rationale_189",
+      "backend_pipeline_sofascore_cliente_rationale_247",
+      "backend_pipeline_sofascore_cliente_rationale_306",
+      "backend_pipeline_sofascore_cliente_rationale_315",
+      "backend_pipeline_sofascore_cliente_rationale_322",
+      "backend_pipeline_sofascore_cliente_rationale_331",
+      "backend_pipeline_sofascore_cliente_rationale_341",
+      "backend_pipeline_sofascore_cliente_sofascorecliente",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_get",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_get_lineups_partido",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_get_partidos_fecha",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_get_partidos_liga_temporada",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_get_stats_partido",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_get_temporadas_liga",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_init",
+      "backend_pipeline_sofascore_debug_stats",
+      "backend_pipeline_sofascore_debug_stats_main",
+      "backend_pipeline_sofascore_test_sofascore",
+      "backend_pipeline_sofascore_test_sofascore_main"
+    ],
+    "15": [
+      "backend_api_routes_predicciones",
+      "backend_api_routes_predicciones_apuesta_combinada",
+      "backend_api_routes_predicciones_parlayrequest",
+      "backend_api_routes_predicciones_predicciones_hoy",
+      "backend_api_routes_predicciones_py_basemodel",
+      "backend_api_routes_predicciones_rationale_355",
+      "backend_api_routes_predicciones_seleccionparlay",
+      "backend_db_modelos_parlay",
+      "backend_db_modelos_parlay_repr",
+      "backend_db_modelos_parlayseleccion",
+      "backend_db_modelos_parlayseleccion_repr",
+      "backend_db_modelos_rationale_243",
+      "backend_db_modelos_rationale_263",
+      "backend_services_prediccion_service_prediccionservice",
+      "backend_services_prediccion_service_prediccionservice_generar_mercados",
+      "backend_services_prediccion_service_rationale_16",
+      "backend_services_prediccion_service_rationale_87",
+      "base",
+      "tests_test_mlops_test_parlay_se_cierra_solo_cuando_todas_las_patas_resuelven"
+    ],
+    "16": [
+      "backend_db_modelos_partido",
+      "backend_db_modelos_partido_repr",
+      "backend_features_calculador",
+      "backend_features_calculador_calcular_forma",
+      "backend_features_calculador_calcular_h2h",
+      "backend_features_calculador_calcular_rating_jugadores",
+      "backend_features_calculador_calcular_stats_sofascore",
+      "backend_features_calculador_calcular_win_rate",
+      "backend_features_calculador_construir_features_partido",
+      "backend_features_calculador_py_session",
+      "backend_features_calculador_rationale_131",
+      "backend_features_calculador_rationale_226",
+      "backend_features_calculador_rationale_375",
+      "backend_features_calculador_rationale_67",
+      "backend_features_dataset",
+      "backend_services_prediccion_service",
+      "backend_services_prediccion_service_prediccionservice_predecir",
+      "backend_services_prediccion_service_prediccionservice_predecir_hoy",
+      "backend_services_prediccion_service_rationale_29"
+    ],
+    "17": [
+      "backend_models_mlp",
+      "backend_models_mlp_cargar_mlp",
+      "backend_models_mlp_datasetmultiobjetivo",
+      "backend_models_mlp_datasetmultiobjetivo_getitem",
+      "backend_models_mlp_datasetmultiobjetivo_init",
+      "backend_models_mlp_datasetmultiobjetivo_len",
+      "backend_models_mlp_entrenar_mlp",
+      "backend_models_mlp_guardar_mlp",
+      "backend_models_mlp_perdida_batch",
+      "backend_models_mlp_py_dataframe",
+      "backend_models_mlp_py_dataset",
+      "backend_models_mlp_py_path",
+      "backend_models_mlp_rationale_1",
+      "backend_models_mlp_redmultiobjetivo",
+      "backend_models_mlp_redmultiobjetivo_forward",
+      "backend_models_mlp_redmultiobjetivo_init",
+      "standardscaler",
+      "tensor"
+    ],
+    "18": [
+      "backend_pipeline_sofascore_correr_historico_completo",
+      "backend_pipeline_sofascore_correr_historico_completo_main",
+      "backend_pipeline_sofascore_equipos",
+      "backend_pipeline_sofascore_equipos_anclar_si_corresponde",
+      "backend_pipeline_sofascore_equipos_rationale_1",
+      "backend_pipeline_sofascore_equipos_rationale_28",
+      "backend_pipeline_sofascore_equipos_rationale_90",
+      "backend_pipeline_sofascore_equipos_resolver_liga_id",
+      "backend_pipeline_sofascore_job_historico_sofascore",
+      "backend_pipeline_sofascore_job_historico_sofascore_buscar_partido",
+      "backend_pipeline_sofascore_job_historico_sofascore_correr_job_historico_sofascore",
+      "backend_pipeline_sofascore_job_historico_sofascore_procesar_evento_stats",
+      "backend_pipeline_sofascore_job_historico_sofascore_rationale_125",
+      "backend_pipeline_sofascore_job_sofascore",
+      "backend_pipeline_sofascore_job_sofascore_correr_job_sofascore_diario",
+      "backend_pipeline_sofascore_job_sofascore_rationale_1",
+      "backend_pipeline_sofascore_parser_parsear_jugadores",
+      "backend_pipeline_sofascore_parser_rationale_150"
+    ],
+    "19": [
       "frontend_lib_core_theme",
       "frontend_lib_core_theme_amber",
       "frontend_lib_core_theme_apptheme",
@@ -398,7 +620,7 @@
       "static_const_color",
       "static_themedata_get"
     ],
-    "11": [
+    "20": [
       "changenotifier",
       "frontend_lib_presentation_providers_partidos_provider_partidosprovider",
       "frontend_lib_presentation_screens_home_screen",
@@ -416,7 +638,24 @@
       "route_stats",
       "voidcallback"
     ],
-    "12": [
+    "21": [
+      "backend_api_routes_predicciones_correr_montecarlo_partido",
+      "backend_api_routes_predicciones_kelly_partido",
+      "backend_api_routes_predicciones_kelly_portafolio_partido",
+      "backend_api_routes_predicciones_mercados_jugadores",
+      "backend_api_routes_predicciones_montecarlo_partido",
+      "backend_api_routes_predicciones_prediccion_ensemble",
+      "backend_api_routes_predicciones_py_get",
+      "backend_api_routes_predicciones_py_session",
+      "backend_api_routes_predicciones_rationale_116",
+      "backend_api_routes_predicciones_rationale_214",
+      "backend_api_routes_predicciones_rationale_257",
+      "backend_api_routes_predicciones_rationale_32",
+      "backend_api_routes_predicciones_rationale_540",
+      "backend_api_routes_predicciones_rationale_79",
+      "request"
+    ],
+    "22": [
       "frontend_lib_core_constants",
       "frontend_lib_core_constants_apiconstants",
       "frontend_lib_core_constants_appconstants",
@@ -433,23 +672,23 @@
       "static_const_duration",
       "static_const_string"
     ],
-    "13": [
-      "bool_get",
-      "data_repositories_partido_repo_impl_dart",
-      "domain_usecases_get_stats_modelo_dart",
-      "frontend_lib_data_models_partido_model_statsmodelomodel",
-      "frontend_lib_domain_entities_prediccion_statsmodelo",
-      "frontend_lib_presentation_providers_stats_provider",
-      "frontend_lib_presentation_providers_stats_provider_cargando",
-      "frontend_lib_presentation_providers_stats_provider_cargar",
-      "frontend_lib_presentation_providers_stats_provider_error",
-      "frontend_lib_presentation_providers_stats_provider_getstats",
-      "frontend_lib_presentation_providers_stats_provider_stats",
-      "statsmodelo_get",
-      "string",
-      "string_get"
+    "23": [
+      "backend_models_resolver_mercado",
+      "backend_models_resolver_mercado_rationale_1",
+      "backend_models_resolver_mercado_rationale_31",
+      "backend_models_resolver_mercado_resolver_mercado",
+      "backend_models_resolver_mercado_resultado_1x2",
+      "backend_models_resolver_mercado_stats",
+      "backend_pipeline_job_cerrar_predicciones",
+      "backend_pipeline_job_cerrar_predicciones_cerrar_parlays_pendientes",
+      "backend_pipeline_job_cerrar_predicciones_cerrar_predicciones_individuales",
+      "backend_pipeline_job_cerrar_predicciones_clave_mercado",
+      "backend_pipeline_job_cerrar_predicciones_correr_job_cerrar_predicciones",
+      "backend_pipeline_job_cerrar_predicciones_rationale_1",
+      "backend_pipeline_job_cerrar_predicciones_rationale_27",
+      "backend_pipeline_job_cerrar_predicciones_rationale_63"
     ],
-    "14": [
+    "24": [
       "domain_usecases_get_detalle_partido_dart",
       "frontend_lib_presentation_screens_detalle_screen",
       "frontend_lib_presentation_screens_detalle_screen_buildcontent",
@@ -465,7 +704,7 @@
       "frontend_lib_presentation_screens_detalle_screen_partidoid",
       "frontend_lib_presentation_screens_detalle_screen_prob"
     ],
-    "15": [
+    "25": [
       "domain_usecases_get_partidos_hoy_dart",
       "frontend_lib_presentation_providers_partidos_provider",
       "frontend_lib_presentation_providers_partidos_provider_cargando",
@@ -481,7 +720,62 @@
       "frontend_lib_presentation_providers_partidos_provider_toppicks",
       "list"
     ],
-    "16": [
+    "26": [
+      "backend_features_jugadores",
+      "backend_features_jugadores_calcular_forma_jugador",
+      "backend_features_jugadores_obtener_titulares_probables",
+      "backend_features_jugadores_py_session",
+      "backend_features_jugadores_rationale_1",
+      "backend_features_jugadores_rationale_22",
+      "backend_features_jugadores_rationale_64",
+      "backend_models_jugadores_montecarlo",
+      "backend_models_jugadores_montecarlo_rationale_1",
+      "backend_models_jugadores_montecarlo_rationale_56",
+      "backend_models_jugadores_montecarlo_simular_jugador",
+      "backend_models_jugadores_montecarlo_simular_jugadores_partido"
+    ],
+    "27": [
+      "backend_pipeline_sofascore_equipos_buscar_candidatos",
+      "backend_pipeline_sofascore_equipos_equipos_de_la_liga",
+      "backend_pipeline_sofascore_equipos_rationale_37",
+      "backend_pipeline_sofascore_equipos_rationale_52",
+      "backend_pipeline_sofascore_job_crear_fixtures_sofascore",
+      "backend_pipeline_sofascore_job_crear_fixtures_sofascore_correr_job_crear_fixtures_sofascore",
+      "backend_pipeline_sofascore_job_crear_fixtures_sofascore_es_temporada_2025_en_adelante",
+      "backend_pipeline_sofascore_job_crear_fixtures_sofascore_parsear_temporada",
+      "backend_pipeline_sofascore_job_crear_fixtures_sofascore_rationale_1",
+      "backend_pipeline_sofascore_job_crear_fixtures_sofascore_rationale_170",
+      "backend_pipeline_sofascore_job_crear_fixtures_sofascore_rationale_35",
+      "backend_pipeline_sofascore_job_crear_fixtures_sofascore_resolver_o_crear_equipo"
+    ],
+    "28": [
+      "bool_get",
+      "data_repositories_partido_repo_impl_dart",
+      "domain_usecases_get_stats_modelo_dart",
+      "frontend_lib_presentation_providers_stats_provider",
+      "frontend_lib_presentation_providers_stats_provider_cargando",
+      "frontend_lib_presentation_providers_stats_provider_cargar",
+      "frontend_lib_presentation_providers_stats_provider_error",
+      "frontend_lib_presentation_providers_stats_provider_getstats",
+      "frontend_lib_presentation_providers_stats_provider_stats",
+      "statsmodelo_get",
+      "string",
+      "string_get"
+    ],
+    "29": [
+      "backend_db_modelos_estadisticajugador",
+      "backend_db_modelos_estadisticajugador_repr",
+      "backend_db_modelos_estadisticasofascore",
+      "backend_db_modelos_estadisticasofascore_repr",
+      "backend_db_modelos_rationale_123",
+      "backend_pipeline_sofascore_guardador_sofascore",
+      "backend_pipeline_sofascore_guardador_sofascore_guardar_jugadores",
+      "backend_pipeline_sofascore_guardador_sofascore_guardar_stats_sofascore",
+      "backend_pipeline_sofascore_guardador_sofascore_py_session",
+      "backend_pipeline_sofascore_guardador_sofascore_rationale_12",
+      "backend_pipeline_sofascore_guardador_sofascore_rationale_38"
+    ],
+    "30": [
       "color",
       "frontend_lib_presentation_providers_stats_provider_statsprovider",
       "frontend_lib_presentation_screens_stats_screen",
@@ -494,7 +788,7 @@
       "providers_stats_provider_dart",
       "string_label"
     ],
-    "17": [
+    "31": [
       "frontend_web_manifest",
       "frontend_web_manifest_background_color",
       "frontend_web_manifest_description",
@@ -507,7 +801,41 @@
       "frontend_web_manifest_start_url",
       "frontend_web_manifest_theme_color"
     ],
-    "18": [
+    "32": [
+      "domain_entities_partido_dart",
+      "domain_entities_prediccion_dart",
+      "frontend_lib_data_models_partido_model",
+      "frontend_lib_data_models_partido_model_fromjson",
+      "frontend_lib_data_models_partido_model_mercadomodel",
+      "frontend_lib_data_models_partido_model_partidomodel",
+      "frontend_lib_data_models_partido_model_prediccionmodel",
+      "frontend_lib_data_models_partido_model_statsmodelomodel",
+      "frontend_lib_domain_entities_prediccion_mercado",
+      "frontend_lib_domain_entities_prediccion_statsmodelo"
+    ],
+    "33": [
+      "backend_api_routes_predicciones_analizar_captura",
+      "backend_api_routes_predicciones_py_post",
+      "backend_api_routes_predicciones_rationale_455",
+      "backend_models_odds_service_obtener_mejores_odds",
+      "backend_models_odds_service_py_session",
+      "backend_models_odds_service_rationale_8",
+      "backend_models_parser_imagen_rationale_155",
+      "backend_models_parser_imagen_resolver_partido_y_mercados",
+      "uploadfile"
+    ],
+    "34": [
+      "backend_pipeline_sofascore_parser",
+      "backend_pipeline_sofascore_parser_build_stats_dict",
+      "backend_pipeline_sofascore_parser_extraer_valor",
+      "backend_pipeline_sofascore_parser_limpiar_valor",
+      "backend_pipeline_sofascore_parser_parsear_stats_partido",
+      "backend_pipeline_sofascore_parser_rationale_29",
+      "backend_pipeline_sofascore_parser_rationale_57",
+      "backend_pipeline_sofascore_parser_rationale_9",
+      "backend_pipeline_sofascore_parser_rationale_94"
+    ],
+    "35": [
       "core_router_dart",
       "core_theme_dart",
       "frontend_lib_main",
@@ -518,7 +846,7 @@
       "presentation_providers_partidos_provider_dart",
       "presentation_providers_stats_provider_dart"
     ],
-    "19": [
+    "36": [
       "frontend_lib_core_errors_failures",
       "frontend_lib_core_errors_failures_failure",
       "frontend_lib_core_errors_failures_mensaje",
@@ -528,7 +856,7 @@
       "frontend_lib_core_errors_failures_serverfailure",
       "frontend_lib_core_errors_failures_statuscode"
     ],
-    "20": [
+    "37": [
       "frontend_lib_main_betmlapp",
       "frontend_lib_presentation_screens_detalle_screen_bigprob",
       "frontend_lib_presentation_screens_home_screen_chip",
@@ -538,7 +866,7 @@
       "frontend_lib_presentation_screens_stats_screen_statbox",
       "statelesswidget"
     ],
-    "21": [
+    "38": [
       "frontend_lib_core_router",
       "frontend_lib_core_router_approuter",
       "package_go_router_go_router_dart",
@@ -546,7 +874,7 @@
       "presentation_screens_home_screen_dart",
       "presentation_screens_stats_screen_dart"
     ],
-    "22": [
+    "39": [
       "frontend_lib_presentation_screens_detalle_screen_detallescreen",
       "frontend_lib_presentation_screens_detalle_screen_detallescreenstate",
       "frontend_lib_presentation_screens_home_screen_homescreen",
@@ -554,234 +882,293 @@
       "state",
       "statefulwidget"
     ],
-    "23": [
+    "40": [
+      "backend_pipeline_sofascore_cliente_rationale_205",
+      "backend_pipeline_sofascore_cliente_rationale_348",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_enter",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_iniciar"
+    ],
+    "41": [
+      "backend_pipeline_sofascore_cliente_rationale_239",
+      "backend_pipeline_sofascore_cliente_rationale_353",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_cerrar",
+      "backend_pipeline_sofascore_cliente_sofascorecliente_exit"
+    ],
+    "42": [
       "frontend_test_widget_test",
       "frontend_test_widget_test_main",
       "package_flutter_test_flutter_test_dart",
       "package_frontend_main_dart"
     ],
-    "24": [
+    "43": [
       "flutteractivity",
       "frontend_android_app_src_main_kotlin_com_betmlpro_frontend_mainactivity",
       "frontend_android_app_src_main_kotlin_com_betmlpro_frontend_mainactivity_mainactivity"
     ],
-    "25": [
+    "44": [
       "frontend_lib_presentation_screens_detalle_screen_build",
       "frontend_lib_presentation_screens_stats_screen_build",
       "route"
     ],
-    "26": [
+    "45": [
       "backend_api_init"
     ],
-    "27": [
+    "46": [
       "backend_api_routes_init"
     ],
-    "28": [
+    "47": [
       "backend_core_dependencies"
     ],
-    "29": [
+    "48": [
       "backend_db_init"
     ],
-    "30": [
+    "49": [
+      "backend_features_calculador_py_partido"
+    ],
+    "50": [
       "backend_features_init"
     ],
-    "31": [
+    "51": [
       "backend_init"
     ],
-    "32": [
+    "52": [
       "backend_models_init"
     ],
-    "33": [
+    "53": [
+      "backend_models_predictor_py_partido"
+    ],
+    "54": [
       "backend_pipeline_init"
     ],
-    "34": [
+    "55": [
       "backend_pipeline_sofascore_init"
     ],
-    "35": [
+    "56": [
+      "backend_pipeline_sofascore_job_historico_sofascore_py_partido"
+    ],
+    "57": [
+      "backend_pipeline_sofascore_job_sofascore_py_partido"
+    ],
+    "58": [
+      "backend_pipeline_sofascore_job_sofascore_py_session"
+    ],
+    "59": [
       "backend_pipeline_test_api"
     ],
-    "36": [
+    "60": [
       "backend_repositories_init"
     ],
-    "37": [
+    "61": [
+      "backend_repositories_prediccion_repo_py_prediccion"
+    ],
+    "62": [
       "backend_scheduler_init"
     ],
-    "38": [
+    "63": [
       "backend_services_init"
     ],
-    "39": [
+    "64": [
+      "backend_services_prediccion_service_py_partido"
+    ],
+    "65": [
       "frontend_android_app_build_gradle"
     ],
-    "40": [
+    "66": [
       "frontend_android_build_gradle"
     ],
-    "41": [
+    "67": [
       "frontend_android_settings_gradle"
     ],
-    "42": [
+    "68": [
       "frontend_ios_runner_runner_bridging_header"
     ],
-    "43": [
+    "69": [
       "none_partido"
     ],
-    "44": [
+    "70": [
       "none_prediccion"
     ]
   },
   "cohesion": {
-    "0": 0.07682177348551361,
-    "1": 0.05625,
-    "2": 0.06538461538461539,
-    "3": 0.08571428571428572,
-    "4": 0.12315270935960591,
-    "5": 0.10052910052910052,
-    "6": 0.13333333333333333,
-    "7": 0.08,
-    "8": 0.08333333333333333,
-    "9": 0.11052631578947368,
-    "10": 0.11764705882352941,
-    "11": 0.14166666666666666,
-    "12": 0.13333333333333333,
-    "13": 0.14285714285714285,
-    "14": 0.14285714285714285,
-    "15": 0.14285714285714285,
-    "16": 0.23636363636363636,
-    "17": 0.18181818181818182,
-    "18": 0.2222222222222222,
-    "19": 0.39285714285714285,
-    "20": 0.25,
-    "21": 0.3333333333333333,
-    "22": 0.4,
-    "23": 0.5,
-    "24": 0.6666666666666666,
-    "25": 0.6666666666666666,
-    "26": 1.0,
-    "27": 1.0,
-    "28": 1.0,
-    "29": 1.0,
-    "30": 1.0,
-    "31": 1.0,
-    "32": 1.0,
-    "33": 1.0,
-    "34": 1.0,
-    "35": 1.0,
-    "36": 1.0,
-    "37": 1.0,
-    "38": 1.0,
-    "39": 1.0,
-    "40": 1.0,
-    "41": 1.0,
-    "42": 1.0,
-    "43": 1.0,
-    "44": 1.0
+    "0": 0.05575065847234416,
+    "1": 0.07581453634085213,
+    "2": 0.09840425531914894,
+    "3": 0.09365079365079365,
+    "4": 0.0766488413547237,
+    "5": 0.08333333333333333,
+    "6": 0.10804597701149425,
+    "7": 0.15076923076923077,
+    "8": 0.11333333333333333,
+    "9": 0.11,
+    "10": 0.08333333333333333,
+    "11": 0.08695652173913043,
+    "12": 0.11052631578947368,
+    "13": 0.17894736842105263,
+    "14": 0.14736842105263157,
+    "15": 0.1871345029239766,
+    "16": 0.2046783625730994,
+    "17": 0.16993464052287582,
+    "18": 0.20261437908496732,
+    "19": 0.11764705882352941,
+    "20": 0.14166666666666666,
+    "21": 0.20952380952380953,
+    "22": 0.13333333333333333,
+    "23": 0.23076923076923078,
+    "24": 0.14285714285714285,
+    "25": 0.14285714285714285,
+    "26": 0.24242424242424243,
+    "27": 0.21212121212121213,
+    "28": 0.16666666666666666,
+    "29": 0.21818181818181817,
+    "30": 0.23636363636363636,
+    "31": 0.18181818181818182,
+    "32": 0.2,
+    "33": 0.2222222222222222,
+    "34": 0.2777777777777778,
+    "35": 0.2222222222222222,
+    "36": 0.39285714285714285,
+    "37": 0.25,
+    "38": 0.3333333333333333,
+    "39": 0.4,
+    "40": 0.5,
+    "41": 0.5,
+    "42": 0.5,
+    "43": 0.6666666666666666,
+    "44": 0.6666666666666666,
+    "45": 1.0,
+    "46": 1.0,
+    "47": 1.0,
+    "48": 1.0,
+    "49": 1.0,
+    "50": 1.0,
+    "51": 1.0,
+    "52": 1.0,
+    "53": 1.0,
+    "54": 1.0,
+    "55": 1.0,
+    "56": 1.0,
+    "57": 1.0,
+    "58": 1.0,
+    "59": 1.0,
+    "60": 1.0,
+    "61": 1.0,
+    "62": 1.0,
+    "63": 1.0,
+    "64": 1.0,
+    "65": 1.0,
+    "66": 1.0,
+    "67": 1.0,
+    "68": 1.0,
+    "69": 1.0,
+    "70": 1.0
   },
   "gods": [
     {
-      "id": "backend_repositories_partido_repo_partidorepository",
-      "label": "PartidoRepository",
-      "degree": 26
-    },
-    {
       "id": "backend_db_modelos_partido",
       "label": "Partido",
-      "degree": 20
+      "degree": 41
+    },
+    {
+      "id": "backend_repositories_prediccion_repo_prediccionrepository",
+      "label": "PrediccionRepository",
+      "degree": 27
+    },
+    {
+      "id": "backend_models_montecarlo_simular_partido",
+      "label": "simular_partido()",
+      "degree": 23
     },
     {
       "id": "backend_pipeline_sofascore_cliente_sofascorecliente",
       "label": "SofascoreCliente",
-      "degree": 19
+      "degree": 23
     },
     {
-      "id": "backend_db_database_crear_tablas",
-      "label": "crear_tablas()",
-      "degree": 16
+      "id": "backend_repositories_partido_repo_partidorepository",
+      "label": "PartidoRepository",
+      "degree": 20
     },
     {
       "id": "backend_services_prediccion_service_prediccionservice",
       "label": "PrediccionService",
-      "degree": 16
+      "degree": 20
+    },
+    {
+      "id": "backend_models_ensemble_predecir_ensemble",
+      "label": "predecir_ensemble()",
+      "degree": 18
     },
     {
       "id": "backend_features_calculador_construir_features_partido",
       "label": "construir_features_partido()",
+      "degree": 17
+    },
+    {
+      "id": "backend_models_kelly_calcular_kelly",
+      "label": "calcular_kelly()",
       "degree": 15
     },
     {
       "id": "backend_db_modelos_equipo",
       "label": "Equipo",
-      "degree": 13
-    },
-    {
-      "id": "backend_services_partido_service_partidoservice",
-      "label": "PartidoService",
-      "degree": 13
-    },
-    {
-      "id": "backend_db_modelos_estadisticasofascore",
-      "label": "EstadisticaSofascore",
-      "degree": 12
-    },
-    {
-      "id": "backend_repositories_prediccion_repo_prediccionrepository",
-      "label": "PrediccionRepository",
-      "degree": 12
+      "degree": 14
     }
   ],
   "surprises": [
     {
-      "source": "root()",
-      "target": "_get",
+      "source": "test_token_invalido_rechazado()",
+      "target": "verificar_token()",
       "source_files": [
-        "backend/api/main.py",
-        "frontend/lib/data/datasources/partido_remote_ds.dart"
+        "tests/test_auth.py",
+        "backend/core/auth.py"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories; peripheral node `root()` unexpectedly reaches hub `_get`"
+      "relation": "calls",
+      "why": "connects across different repos/directories; peripheral node `test_token_invalido_rechazado()` unexpectedly reaches hub `verificar_token()`"
     },
     {
-      "source": "health()",
-      "target": "_get",
+      "source": "test_factor_confianza_reduce_stake_sin_cambiar_value_bet()",
+      "target": "calcular_kelly()",
       "source_files": [
-        "backend/api/main.py",
-        "frontend/lib/data/datasources/partido_remote_ds.dart"
+        "tests/test_kelly.py",
+        "backend/models/kelly.py"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories; peripheral node `health()` unexpectedly reaches hub `_get`"
+      "relation": "calls",
+      "why": "connects across different repos/directories; peripheral node `test_factor_confianza_reduce_stake_sin_cambiar_value_bet()` unexpectedly reaches hub `calcular_kelly()`"
     },
     {
-      "source": "stats_modelo()",
-      "target": "_get",
+      "source": "test_kelly_entradas_invalidas_no_explota()",
+      "target": "calcular_kelly()",
       "source_files": [
-        "backend/api/routes/stats.py",
-        "frontend/lib/data/datasources/partido_remote_ds.dart"
+        "tests/test_kelly.py",
+        "backend/models/kelly.py"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories; bridges separate communities"
+      "relation": "calls",
+      "why": "connects across different repos/directories; peripheral node `test_kelly_entradas_invalidas_no_explota()` unexpectedly reaches hub `calcular_kelly()`"
     },
     {
-      "source": "partidos_hoy()",
-      "target": "_get",
+      "source": "test_kelly_sin_valor_no_apuesta()",
+      "target": "calcular_kelly()",
       "source_files": [
-        "backend/api/routes/partidos.py",
-        "frontend/lib/data/datasources/partido_remote_ds.dart"
+        "tests/test_kelly.py",
+        "backend/models/kelly.py"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories"
+      "relation": "calls",
+      "why": "connects across different repos/directories; peripheral node `test_kelly_sin_valor_no_apuesta()` unexpectedly reaches hub `calcular_kelly()`"
     },
     {
-      "source": "detalle_partido()",
-      "target": "_get",
+      "source": "test_kelly_value_bet_positivo()",
+      "target": "calcular_kelly()",
       "source_files": [
-        "backend/api/routes/partidos.py",
-        "frontend/lib/data/datasources/partido_remote_ds.dart"
+        "tests/test_kelly.py",
+        "backend/models/kelly.py"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories"
+      "relation": "calls",
+      "why": "connects across different repos/directories; peripheral node `test_kelly_value_bet_positivo()` unexpectedly reaches hub `calcular_kelly()`"
     }
   ],
   "tokens": {

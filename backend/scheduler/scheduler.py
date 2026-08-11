@@ -14,6 +14,23 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def job_reentrenar_modelos():
+    """
+    Domingos 03:00 — reentrena los 4 modelos (XGBoost/MLP/LSTM/GNN) con
+    todo el dataset actualizado + reajusta Dixon-Coles. Semanal, no
+    diario — un reentreno completo tarda ~15-20 min y no hace falta más
+    seguido que eso para que el sistema vaya "aprendiendo" de los
+    partidos que se van cerrando cada día.
+    """
+    log.info("Iniciando reentrenamiento semanal de modelos (domingo 03:00)")
+    try:
+        from backend.pipeline.job_reentrenar_modelos import correr_reentrenamiento_completo
+        correr_reentrenamiento_completo()
+        log.info("Reentrenamiento semanal completado")
+    except Exception as e:
+        log.error(f"Error en reentrenamiento semanal: {e}")
+
+
 def job_pipeline_dia():
     """
     23:55 — Guarda todos los partidos del día con estado final.
@@ -117,6 +134,7 @@ def iniciar_scheduler():
     log.info("  01:00 → Estadísticas Sofascore (xG, corners, jugadores)")
     log.info("  01:15 → Cuotas de los próximos partidos")
     log.info("  01:30 → MLOps: cerrar predicciones vs resultado real")
+    log.info("  Domingo 03:00 → Reentrenar los 4 modelos + Dixon-Coles")
     log.info("=" * 55)
 
     schedule.every().day.at("23:55").do(job_pipeline_dia)
@@ -125,6 +143,7 @@ def iniciar_scheduler():
     schedule.every().day.at("01:00").do(job_sofascore_diario)
     schedule.every().day.at("01:15").do(job_odds)
     schedule.every().day.at("01:30").do(job_cerrar_predicciones)
+    schedule.every().sunday.at("03:00").do(job_reentrenar_modelos)
 
     while True:
         schedule.run_pending()

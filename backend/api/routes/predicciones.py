@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from backend.db.database import get_db
@@ -448,6 +448,87 @@ def apuesta_combinada(body: ParlayRequest, db: Session = Depends(get_db)):
         resultado["parlay_id"] = parlay.id
 
     return resultado
+
+
+@router.post("/analizar-captura")
+async def analizar_captura(imagen: UploadFile = File(...), db: Session = Depends(get_db)):
+    """
+    Subís una captura de pantalla de un parley/bet builder — el sistema
+    lee equipos y mercados (OCR local, gratis, sin API externa — ver
+    parser_imagen.py) y devuelve NUESTRA probabilidad para cada
+    selección detectada, con recomendación.
+
+    Heurístico, no infalible: capturas limpias de bookmaker andan bien,
+    fotos borrosas o layouts raros pueden no reconocer todo — lo que no
+    se pudo leer se lista aparte en vez de inventarse.
+    """
+    import tempfile
+    from pathlib import Path
+    from backend.models.parser_imagen import analizar_captura_parley, resolver_partido_y_mercados
+    from backend.models.kelly import construir_lista_mercados
+    from backend.models.odds_service import obtener_mejores_odds
+    from backend.services.prediccion_service import PrediccionService
+
+    contenido = await imagen.read()
+    with tempfile.NamedTemporaryFile(suffix=Path(imagen.filename or "img.png").suffix, delete=False) as tmp:
+        tmp.write(contenido)
+        ruta_tmp = tmp.name
+
+    try:
+        analisis = analizar_captura_parley(db, ruta_tmp)
+    finally:
+        Path(ruta_tmp).unlink(missing_ok=True)
+
+    partido, mercados_detectados, avisos = resolver_partido_y_mercados(db, analisis)
+
+    if partido is None:
+        return {
+            "reconocido": False,
+            "avisos": avisos,
+            "lineas_ocr": analisis["lineas_ocr"],
+            "sin_reconocer": analisis["sin_reconocer"],
+        }
+
+    service = PrediccionService(db)
+    pred = service.predecir(partido)
+    montecarlo = None
+    if pred:
+        montecarlo, _ = _correr_montecarlo_partido(db, partido, pred)
+
+    disponibles = construir_lista_mercados(pred, montecarlo) if pred else []
+    odds_guardadas = obtener_mejores_odds(db, partido.id)
+
+    resultados = []
+    prob_combinada = 1.0
+    for m in mercados_detectados:
+        odds_key = f"odds_{m['mercado']}"
+        encontrado = next((e for e in disponibles if e[2] == odds_key), None)
+        if encontrado is None:
+            resultados.append({**m, "reconocido": False,
+                                "aviso": "no se pudo calcular probabilidad para este mercado"})
+            continue
+
+        _, prob, _, _ = encontrado
+        cuota = odds_guardadas.get(odds_key)
+        prob_combinada *= prob
+
+        fila = {**m, "reconocido": True, "probabilidad": round(prob, 4)}
+        if cuota is not None:
+            fila["cuota_disponible"] = cuota
+            fila["edge"] = round(prob - (1 / cuota), 4)
+            fila["recomendacion"] = "Value bet" if prob > (1 / cuota) else "Sin valor"
+        else:
+            fila["recomendacion"] = "Probable" if prob > 0.5 else "Improbable"
+        resultados.append(fila)
+
+    return {
+        "reconocido": True,
+        "partido_id": partido.id,
+        "avisos": avisos,
+        "sin_reconocer": analisis["sin_reconocer"],
+        "selecciones": resultados,
+        "prob_combinada_estimada": round(prob_combinada, 4) if resultados else None,
+    }
 
 
 @router.get("/{partido_id}/jugadores")

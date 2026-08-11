@@ -1,0 +1,14 @@
+[Unit]
+Description=BetML Pro scheduler (pipeline diario, odds, cierre predicciones, reentreno semanal)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/betml_pro
+EnvironmentFile=/opt/betml_pro/.env
+ExecStart=/opt/betml_pro/.venv/bin/python -m backend.scheduler.scheduler
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
