@@ -6,6 +6,7 @@ from backend.db.database import SessionLocal
 from backend.db.modelos import Partido, Prediccion
 from backend.repositories.prediccion_repo import PrediccionRepository
 from backend.pipeline.job_cerrar_predicciones import correr_job_cerrar_predicciones
+from backend.models.ensemble import _peso_modelo, MIN_MUESTRAS_PESO
 
 
 @pytest.fixture
@@ -49,6 +50,27 @@ def test_job_cierra_prediccion_pendiente_con_resultado_real(partido_ft):
     assert fila.acerto == (fila.prediccion == resultado_esperado)
 
 
+def test_job_cierra_variante_1x2_por_modelo(partido_ft):
+    """mercado="1X2-xgboost" (predicción individual del ensemble, no el
+    combinado) tiene que cerrar igual que "1X2" — _clave_mercado() ahora
+    usa startswith("1X2") en vez de comparar contra 2 strings fijas."""
+    db, partido = partido_ft
+    repo = PrediccionRepository(db)
+    repo.crear(partido_id=partido.id, mercado="1X2-xgboost", prediccion="Local",
+               probabilidad=0.5, confianza=0.5)
+
+    correr_job_cerrar_predicciones()
+
+    fila = db.query(Prediccion).filter(Prediccion.partido_id == partido.id).first()
+    resultado_esperado = (
+        "Local" if partido.goles_local > partido.goles_visitante
+        else "Empate" if partido.goles_local == partido.goles_visitante
+        else "Visitante"
+    )
+    assert fila.resultado_real == resultado_esperado
+    assert fila.acerto == (fila.prediccion == resultado_esperado)
+
+
 def test_job_cierra_mercado_no_1x2(partido_ft):
     """goles_over_X_X, corners_over_X_X, etc — la parte nueva de esta
     sesión: antes SOLO se trackeaba 1X2, cualquier otro mercado se
@@ -78,6 +100,50 @@ def test_stats_por_mercado_no_mezcla_fuentes(partido_ft):
     stats = repo.get_stats()
     assert "test-mercado-unico" in stats["por_mercado"]
     assert stats["por_mercado"]["test-mercado-unico"]["total"] >= 1
+
+
+@pytest.fixture
+def historial_modelo():
+    """Filas Prediccion de un modelo ficticio, ya cerradas — para probar
+    _peso_modelo() sin depender de que el ensemble real haya corrido."""
+    db = SessionLocal()
+    partido = (db.query(Partido)
+               .filter(Partido.estado == "FT", Partido.goles_local.isnot(None))
+               .order_by(Partido.fecha.asc()).offset(500).first())
+    mercado = "1X2-modelo_test_peso"
+    db.query(Prediccion).filter(Prediccion.mercado == mercado).delete()
+    db.commit()
+    yield db, partido, mercado
+    db.query(Prediccion).filter(Prediccion.mercado == mercado).delete()
+    db.commit()
+    db.close()
+
+
+def _crear_cerradas(db, partido, mercado, n_aciertos, n_fallos):
+    for _ in range(n_aciertos):
+        db.add(Prediccion(partido_id=partido.id, mercado=mercado, prediccion="Local",
+                           probabilidad=0.5, confianza=0.5, resultado_real="Local", acerto=True))
+    for _ in range(n_fallos):
+        db.add(Prediccion(partido_id=partido.id, mercado=mercado, prediccion="Local",
+                           probabilidad=0.5, confianza=0.5, resultado_real="Visitante", acerto=False))
+    db.commit()
+
+
+def test_peso_modelo_usa_fallback_con_pocas_muestras(historial_modelo):
+    db, partido, mercado = historial_modelo
+    _crear_cerradas(db, partido, mercado, n_aciertos=5, n_fallos=5)  # 10 < MIN_MUESTRAS_PESO
+
+    peso = _peso_modelo(db, "modelo_test_peso", val_acc_fallback=0.777)
+    assert peso == 0.777
+
+
+def test_peso_modelo_usa_accuracy_real_con_historial_suficiente(historial_modelo):
+    db, partido, mercado = historial_modelo
+    n = MIN_MUESTRAS_PESO
+    _crear_cerradas(db, partido, mercado, n_aciertos=n, n_fallos=0)  # 100% real, != fallback
+
+    peso = _peso_modelo(db, "modelo_test_peso", val_acc_fallback=0.5)
+    assert peso == 1.0
 
 
 @pytest.fixture

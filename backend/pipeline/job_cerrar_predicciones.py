@@ -24,10 +24,11 @@ log = logging.getLogger(__name__)
 
 
 def _clave_mercado(fila) -> str:
-    """1X2/1X2-ensemble guardan la predicción como label ("Local") —
-    resolver_mercado usa la clave en minúscula ("local"). El resto de
-    los mercados ya guarda la clave interna directo en fila.mercado."""
-    if fila.mercado in ("1X2", "1X2-ensemble"):
+    """1X2 y variantes (1X2-ensemble, 1X2-xgboost, 1X2-mlp, 1X2-lstm,
+    1X2-gnn) guardan la predicción como label ("Local") — resolver_mercado
+    usa la clave en minúscula ("local"). El resto de los mercados ya
+    guarda la clave interna directo en fila.mercado."""
+    if fila.mercado.startswith("1X2"):
         return fila.prediccion.lower()
     return fila.mercado
 
@@ -47,7 +48,7 @@ def _cerrar_predicciones_individuales(db, repo: PrediccionRepository) -> int:
         if gano is None:
             continue  # falta stat (corners/HT) o fue push — se reintenta después
 
-        if fila.mercado in ("1X2", "1X2-ensemble"):
+        if fila.mercado.startswith("1X2"):
             gl, gv = partido.goles_local, partido.goles_visitante
             texto = "Local" if gl > gv else ("Empate" if gl == gv else "Visitante")
         else:

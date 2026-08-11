@@ -1,16 +1,22 @@
 """Ensemble — combina XGBoost, MLP, LSTM y GNN por votación ponderada.
 
-El peso de cada modelo es su accuracy de validación (guardada por cada
-entrenador junto al modelo) — el más preciso pesa más en la decisión
-final. Si un modelo no está entrenado/disponible, se excluye del
-promedio en vez de fallar (así el sistema sigue funcionando con
-XGBoost solo mientras MLP/LSTM todavía no se entrenaron).
+El peso de cada modelo es su accuracy REAL reciente en producción
+(predicciones ya cerradas por job_cerrar_predicciones.py, mercado
+"1X2-<modelo>") — no el accuracy de validación fijo calculado una sola
+vez al entrenar. Así el ensemble se auto-ajusta si un modelo empieza a
+rendir distinto en producción que en el entrenamiento, sin tocar código
+ni esperar al reentreno semanal. Con pocas muestras cerradas (<20) el
+ruido de fútbol pesa más que la señal, así que cae al accuracy de
+validación hasta juntar historial suficiente. Si un modelo no está
+entrenado/disponible, se excluye del promedio en vez de fallar (así el
+sistema sigue funcionando con XGBoost solo mientras MLP/LSTM todavía no
+se entrenaron).
 """
 import logging
 import numpy as np
 from sqlalchemy.orm import Session
 
-from backend.db.modelos import Partido
+from backend.db.modelos import Partido, Prediccion
 from backend.features.calculador import construir_features_partido
 from backend.models.entrenador import cargar_modelo, cargar_metricas_xgboost
 from backend.models.mlp import cargar_mlp, predecir_mlp
@@ -24,6 +30,19 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 MERCADO_TRACKING = "1X2-ensemble"
+MIN_MUESTRAS_PESO = 20  # ponytail: umbral fijo a ojo, subir si el accuracy real oscila mucho semana a semana
+
+
+def _peso_modelo(db: Session, nombre: str, val_acc_fallback: float) -> float:
+    q = db.query(Prediccion).filter(
+        Prediccion.mercado == f"1X2-{nombre}",
+        Prediccion.acerto.isnot(None),
+    )
+    total = q.count()
+    if total < MIN_MUESTRAS_PESO:
+        return val_acc_fallback
+    aciertos = q.filter(Prediccion.acerto.is_(True)).count()
+    return aciertos / total
 
 
 def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) -> dict | None:
@@ -48,7 +67,7 @@ def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) ->
         if calibracion is not None:
             proba = calibrar_probabilidades(calibracion, proba)
 
-        peso = cargar_metricas_xgboost().get("val_acc", 0.5)
+        peso = _peso_modelo(db, "xgboost", cargar_metricas_xgboost().get("val_acc", 0.5))
         predicciones.append(("xgboost", np.asarray(proba), peso))
 
     # ── MLP ──────────────────────────────────────────────
@@ -56,7 +75,7 @@ def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) ->
     if cargado_mlp is not None:
         pred_mlp = predecir_mlp(cargado_mlp, features)
         proba = np.array([pred_mlp["prob_local"], pred_mlp["prob_empate"], pred_mlp["prob_visitante"]])
-        predicciones.append(("mlp", proba, cargado_mlp["val_acc"]))
+        predicciones.append(("mlp", proba, _peso_modelo(db, "mlp", cargado_mlp["val_acc"])))
 
     # ── LSTM ─────────────────────────────────────────────
     cargado_lstm = cargar_lstm()
@@ -64,7 +83,7 @@ def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) ->
         pred_lstm = predecir_lstm(cargado_lstm, db, partido.equipo_local_id,
                                    partido.equipo_visit_id, partido.fecha)
         proba = np.array([pred_lstm["prob_local"], pred_lstm["prob_empate"], pred_lstm["prob_visitante"]])
-        predicciones.append(("lstm", proba, cargado_lstm["val_acc"]))
+        predicciones.append(("lstm", proba, _peso_modelo(db, "lstm", cargado_lstm["val_acc"])))
 
     # ── GNN ──────────────────────────────────────────────
     cargado_gnn = cargar_gnn()
@@ -72,7 +91,7 @@ def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) ->
         pred_gnn = predecir_gnn(cargado_gnn, partido.equipo_local_id, partido.equipo_visit_id)
         if pred_gnn is not None:  # None si algún equipo no está en el grafo (recién ascendido, etc)
             proba = np.array([pred_gnn["prob_local"], pred_gnn["prob_empate"], pred_gnn["prob_visitante"]])
-            predicciones.append(("gnn", proba, cargado_gnn["val_acc"]))
+            predicciones.append(("gnn", proba, _peso_modelo(db, "gnn", cargado_gnn["val_acc"])))
 
     if not predicciones:
         log.error("Ningún modelo disponible — corre los entrenadores primero")
@@ -90,13 +109,25 @@ def predecir_ensemble(db: Session, partido: Partido, persistir: bool = False) ->
     confianza = round(float(proba_combinada[idx_max]), 4)
 
     if persistir:
-        PrediccionRepository(db).crear(
+        repo = PrediccionRepository(db)
+        repo.crear(
             partido_id=partido.id,
             mercado=MERCADO_TRACKING,
             prediccion=pred_label,
             probabilidad=confianza,
             confianza=confianza,
         )
+        # predicción de cada modelo por separado — es lo que _peso_modelo()
+        # lee después de cerrada, para reemplazar el val_acc fijo
+        for nombre, proba, _ in predicciones:
+            idx = int(np.argmax(proba))
+            repo.crear(
+                partido_id=partido.id,
+                mercado=f"1X2-{nombre}",
+                prediccion=etiquetas[idx],
+                probabilidad=round(float(proba[idx]), 4),
+                confianza=round(float(proba[idx]), 4),
+            )
 
     return {
         "partido_id": partido.id,
