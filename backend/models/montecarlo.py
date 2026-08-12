@@ -37,6 +37,25 @@ FRACCION_GOLES_HT = 0.4395
 LINEAS_HANDICAP = [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0]
 
 
+def estimar_fraccion_restante(estado: str, minuto: Optional[int]) -> Optional[float]:
+    """Fracción del partido que falta jugar (0-1), para escalar el xG
+    pre-partido en la predicción en vivo (ver predecir_en_vivo() en
+    prediccion_service.py). Modelo lineal simple — asume ritmo de gol
+    constante por minuto, no hay curva real ajustada a datos propios
+    todavía (ponytail: upgrade si hace falta más precisión en el 2do
+    tiempo, donde el ritmo real es más alto).
+
+    None si el estado no es simulable así: 'ET'/'P' (tiempo extra/penales,
+    otra dinámica de gol), o no está en juego, o falta el minuto (elapsed
+    de API-Football, se guarda apenas arranca — si falta es que la última
+    actualización llegó justo antes del pitido inicial)."""
+    if estado == "HT":
+        return 0.5
+    if estado not in ("1H", "2H") or minuto is None:
+        return None
+    return max(0.0, min(1.0, (90 - minuto) / 90))
+
+
 def cargar_rho() -> float:
     """rho ajustado a datos propios si ya se corrió
     ajustar_rho_dixon_coles(), si no el valor de literatura."""
@@ -90,6 +109,8 @@ def simular_partido(
         incluir_handicap: bool = False,
         incluir_ht: bool = False,
         devolver_escenarios: bool = False,
+        goles_local_base: int = 0,
+        goles_visit_base: int = 0,
 ) -> dict:
     """
     Simula un partido N veces muestreando de la distribución conjunta
@@ -121,6 +142,13 @@ def simular_partido(
                                 FRACCION_GOLES_HT (medida en datos reales) —
                                 no es una simulación independiente del 1er
                                 tiempo, es un split del resultado ya simulado.
+      goles_local_base/visit_base → goles YA anotados (partido en vivo) que
+                                se suman a cada simulación antes de calcular
+                                1X2/over-under/marcadores/hándicap — xg_local/
+                                xg_visitante deben ser el xG RESTANTE (no el
+                                del partido completo) para que esto represente
+                                "cómo termina desde acá". Ver
+                                predecir_en_vivo() en prediccion_service.py.
       devolver_escenarios      → incluye resultado["_escenarios"] con los
                                 arrays crudos (goles_local, goles_visit, y
                                 corners/tarjetas si se pidieron) — un valor
@@ -153,8 +181,8 @@ def simular_partido(
     idx_planos = np.random.choice(
         grid.size, size=n_simulaciones, p=grid.ravel()
     )
-    goles_local = idx_planos // (max_goles + 1)
-    goles_visit = idx_planos % (max_goles + 1)
+    goles_local = idx_planos // (max_goles + 1) + goles_local_base
+    goles_visit = idx_planos % (max_goles + 1) + goles_visit_base
 
     # ── RESULTADOS 1X2 ─────────────────────────────────────
     victorias_local = int(np.sum(goles_local > goles_visit))
@@ -200,6 +228,18 @@ def simular_partido(
         over_under[f"under_{str(linea).replace('.', '_')}"] = round(
             under / n_simulaciones, 4)
 
+    # Over/under de goles POR EQUIPO — mismas muestras ya tiradas, sin
+    # gasto extra (a diferencia de corners/tarjetas no hace falta un
+    # Poisson aparte, goles_local/goles_visit ya están).
+    goles_equipo_local = {}
+    goles_equipo_visit = {}
+    for linea in [0.5, 1.5, 2.5]:
+        clave = str(linea).replace(".", "_")
+        goles_equipo_local[f"over_{clave}"] = round(float(np.mean(goles_local > linea)), 4)
+        goles_equipo_local[f"under_{clave}"] = round(float(np.mean(goles_local <= linea)), 4)
+        goles_equipo_visit[f"over_{clave}"] = round(float(np.mean(goles_visit > linea)), 4)
+        goles_equipo_visit[f"under_{clave}"] = round(float(np.mean(goles_visit <= linea)), 4)
+
     # BTTS
     btts_si = int(np.sum((goles_local > 0) & (goles_visit > 0)))
     btts_no = n_simulaciones - btts_si
@@ -231,6 +271,8 @@ def simular_partido(
 
         "top_marcadores": top_marcadores,
         "over_under": over_under,
+        "goles_equipo_local": goles_equipo_local,
+        "goles_equipo_visit": goles_equipo_visit,
 
         "btts_si": round(btts_si / n_simulaciones, 4),
         "btts_no": round(btts_no / n_simulaciones, 4),

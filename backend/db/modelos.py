@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Float,
-    DateTime, Boolean, ForeignKey, Text
+    DateTime, Date, Boolean, ForeignKey, Text
 )
 from sqlalchemy.orm import relationship, backref
 from backend.db.database import Base
@@ -47,6 +47,7 @@ class Partido(Base):
     equipo_visit_id = Column(Integer, ForeignKey("equipos.id"), nullable=False)
     fecha           = Column(DateTime, nullable=False)
     estado          = Column(String(10), default="NS")
+    minuto          = Column(Integer, nullable=True)  # elapsed de API-Football, solo mientras está en vivo
     goles_local     = Column(Integer, nullable=True)
     goles_visitante = Column(Integer, nullable=True)
     goles_local_ht  = Column(Integer, nullable=True)
@@ -213,6 +214,7 @@ class EstadisticaJugador(Base):
     xg_individual        = Column(Float, nullable=True)
     tiros                = Column(Integer, nullable=True)
     tiros_arco           = Column(Integer, nullable=True)
+    atajadas             = Column(Integer, nullable=True)  # solo relevante para arqueros (posicion="G")
 
     # Creación
     pases_clave          = Column(Integer, nullable=True)
@@ -306,6 +308,42 @@ class Odds(Base):
 
     def __repr__(self):
         return f"<Odds {self.mercado}={self.valor} ({self.bookmaker}) partido={self.partido_id}>"
+
+
+class LigaSofascoreTorneo(Base):
+    """Ids de torneo de Sofascore aprendidos para una liga nuestra.
+
+    Una liga nuestra puede corresponder a VARIOS torneos de Sofascore —
+    "Conference League" son dos (fase principal y clasificación, ids
+    distintos), y los amistosos están repartidos en varios torneos
+    además de "Club Friendly Games". Por eso es una tabla y no una
+    columna en Liga.
+
+    Se llena solo, la primera vez que el descubridor encuentra el torneo
+    de un partido que no se pudo anclar con LIGAS_SOFASCORE — ver
+    backend/pipeline/sofascore/descubridor_torneos.py."""
+    __tablename__ = "liga_sofascore_torneo"
+
+    liga_id             = Column(Integer, ForeignKey("ligas.id"), primary_key=True)
+    sofascore_torneo_id = Column(Integer, primary_key=True)
+    nombre_sofascore    = Column(String(150))
+    creado_en           = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<LigaSofascoreTorneo liga={self.liga_id} torneo={self.sofascore_torneo_id} {self.nombre_sofascore!r}>"
+
+
+class PresupuestoApiFootball(Base):
+    """Contador de requests gastadas a API-Football por día — el plan free
+    da 100/día, reset a medianoche UTC (ver backend/pipeline/presupuesto.py).
+    Sin esto ningún job sabe cuánto queda del total compartido."""
+    __tablename__ = "presupuesto_api_football"
+
+    fecha  = Column(Date, primary_key=True)
+    usados = Column(Integer, default=0, nullable=False)
+
+    def __repr__(self):
+        return f"<PresupuestoApiFootball {self.fecha}: {self.usados}>"
 
 
 

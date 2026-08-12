@@ -124,6 +124,42 @@ def job_partidos_en_vivo():
         log.error(f"Error chequeando partidos en vivo: {e}")
 
 
+def job_odds_en_vivo():
+    """
+    Cada 20 min — cuotas en vivo (GET /odds/live, UNA sola llamada trae
+    TODOS los partidos en vivo, no cuesta por fixture). Sin gastar
+    request si no hay nada en vivo (ver _hay_partidos_en_vivo).
+
+    20 min y no 5: con 100 requests/día, lo fijo ya se lleva ~47
+    (fixtures 2 + estadísticas 25 + cuotas pre-partido 20) y
+    job_partidos_en_vivo se lleva ~28 más en una jornada normal — a 5
+    min esto solo pedía ~168/día, imposible. A 20 min son ~21 en una
+    jornada de 7h de partidos, que entra en lo que sobra. Si igual se
+    pone ajustado, el guardia de presupuesto lo frena solo.
+    """
+    log.info("Chequeando cuotas en vivo")
+    try:
+        from backend.pipeline.job_odds_en_vivo import correr_job_odds_en_vivo
+        correr_job_odds_en_vivo()
+    except Exception as e:
+        log.error(f"Error chequeando cuotas en vivo: {e}")
+
+
+def job_sofascore_en_vivo():
+    """
+    Cada 5 min — stats y jugadores en vivo desde Sofascore (xG, tiros,
+    posesión, goles/tarjetas/atajadas por jugador). Sin costo de cuota
+    API-Football. Solo abre el browser si hay partidos en vivo con
+    sofascore_id ya anclado — ver job_sofascore_en_vivo.py.
+    """
+    log.info("Chequeando stats en vivo (Sofascore)")
+    try:
+        from backend.pipeline.sofascore.job_sofascore_en_vivo import correr_job_sofascore_en_vivo
+        correr_job_sofascore_en_vivo()
+    except Exception as e:
+        log.error(f"Error chequeando stats en vivo Sofascore: {e}")
+
+
 def job_alineaciones():
     """
     Cada 15 min — trae la alineación confirmada de Sofascore para
@@ -161,8 +197,9 @@ def job_fixtures_manana():
 def iniciar_scheduler():
     log.info("=" * 55)
     log.info("  BetML Pro — Scheduler iniciado")
-    log.info("  Cada 15 min → Partidos en vivo (marcador/estado + MLOps si termina)")
-    log.info("  Cada 15 min → Alineaciones confirmadas (partidos que arrancan en <90min)")
+    log.info("  Cada 15 min → Alineaciones confirmadas (Sofascore, gratis)")
+    log.info("  Cada 15 min → EN VIVO por Sofascore: marcador/estado/minuto + stats + jugadores")
+    log.info("  (los jobs en vivo de API-Football quedaron fuera para no gastar la cuota diaria)")
     log.info("  23:55 → Partidos del día (FT)")
     log.info("  00:30 → Estadísticas de partidos (API-Football)")
     log.info("  00:45 → Fixtures del día siguiente")
@@ -172,8 +209,13 @@ def iniciar_scheduler():
     log.info("  03:00 (diario) → Reentrenar los 4 modelos + Dixon-Coles")
     log.info("=" * 55)
 
-    schedule.every(15).minutes.do(job_partidos_en_vivo)
+    # En vivo: SOLO Sofascore. job_partidos_en_vivo y job_odds_en_vivo
+    # existen y andan, pero NO se agendan a propósito — gastaban la
+    # cuota de API-Football (100/día) en algo que Sofascore da gratis, y
+    # esa cuota rinde más en el job nocturno de estadísticas. Se pueden
+    # correr a mano: python -m backend.pipeline.job_odds_en_vivo
     schedule.every(15).minutes.do(job_alineaciones)
+    schedule.every(15).minutes.do(job_sofascore_en_vivo)
     schedule.every().day.at("23:55").do(job_pipeline_dia)
     schedule.every().day.at("00:30").do(job_estadisticas)
     schedule.every().day.at("00:45").do(job_fixtures_manana)

@@ -47,6 +47,10 @@ class KellyMercado {
   final double cuotaJusta;
   final double probImplicita;
   final String mensaje;
+  // true si no hay cuota real de bookmaker (ej. goles por equipo — API-Football
+  // solo cotiza esa línea por mitad, no partido completo) — se muestra la
+  // probabilidad del modelo igual, sin stake/EV, en vez de desaparecer.
+  final bool sinCuota;
 
   const KellyMercado({
     required this.mercado,
@@ -61,13 +65,16 @@ class KellyMercado {
     required this.cuotaJusta,
     required this.probImplicita,
     required this.mensaje,
+    this.sinCuota = false,
   });
 
   // texto trazable: de dónde sale el edge, no una afirmación sin números
-  String get porQue =>
-      'Probabilidad del modelo ${(probabilidad * 100).toStringAsFixed(0)}% '
-      'vs ${(probImplicita * 100).toStringAsFixed(0)}% implícita por la cuota '
-      '(${cuota.toStringAsFixed(2)}) → edge ${(edge * 100).toStringAsFixed(1)}pp';
+  String get porQue => sinCuota
+      ? 'Probabilidad del modelo ${(probabilidad * 100).toStringAsFixed(0)}% — '
+        'sin cuota de bookmaker disponible para este mercado'
+      : 'Probabilidad del modelo ${(probabilidad * 100).toStringAsFixed(0)}% '
+        'vs ${(probImplicita * 100).toStringAsFixed(0)}% implícita por la cuota '
+        '(${cuota.toStringAsFixed(2)}) → edge ${(edge * 100).toStringAsFixed(1)}pp';
 
   // Categoría por prefijo de clave — mismo vocabulario que
   // construir_lista_mercados() en el backend, no una lista aparte a
@@ -76,6 +83,7 @@ class KellyMercado {
     if (clave == 'local' || clave == 'empate' || clave == 'visitante') return 'Resultado del partido';
     if (clave.startsWith('handicap_')) return 'Hándicap';
     if (clave.startsWith('goles_1t_')) return 'Goles primer tiempo';
+    if (clave.startsWith('goles_equipo_')) return 'Goles por equipo';
     if (clave.startsWith('goles_')) return 'Goles totales';
     if (clave.startsWith('btts_')) return 'Ambos equipos anotan';
     if (clave.startsWith('corners_')) return 'Córners';
@@ -87,9 +95,9 @@ class KellyMercado {
   }
 
   static const List<String> ordenCategorias = [
-    'Resultado del partido', 'Hándicap', 'Goles totales', 'Ambos equipos anotan',
-    'Córners', 'Tarjetas', 'Tarjetas rojas', 'Resultado primer tiempo',
-    'Goles primer tiempo', 'Resultado segundo tiempo', 'Otros',
+    'Resultado del partido', 'Hándicap', 'Goles totales', 'Goles por equipo',
+    'Ambos equipos anotan', 'Córners', 'Tarjetas', 'Tarjetas rojas',
+    'Resultado primer tiempo', 'Goles primer tiempo', 'Resultado segundo tiempo', 'Otros',
   ];
 }
 
@@ -109,6 +117,7 @@ class JugadorMercado {
   final double asistenciasPromedio;
   final double pasesPromedio;
   final double entradasPromedio;
+  final double atajadasPromedio;
   final double probAnota;
   final double probAmarilla;
   final double probRoja;
@@ -119,6 +128,7 @@ class JugadorMercado {
   final Map<String, double> pasesOverUnder;
   final Map<String, double> entradasOverUnder;
   final Map<String, double> golesOverUnder;
+  final Map<String, double> atajadasOverUnder;
 
   const JugadorMercado({
     required this.nombre,
@@ -129,6 +139,7 @@ class JugadorMercado {
     required this.asistenciasPromedio,
     required this.pasesPromedio,
     required this.entradasPromedio,
+    this.atajadasPromedio = 0,
     required this.probAnota,
     required this.probAmarilla,
     required this.probRoja,
@@ -138,7 +149,11 @@ class JugadorMercado {
     required this.pasesOverUnder,
     required this.entradasOverUnder,
     required this.golesOverUnder,
+    this.atajadasOverUnder = const {},
   });
+
+  // Arquero: única posición con atajadas (Sofascore posicion="G")
+  bool get esArquero => posicion == 'G';
 
   // avatar sin foto real — inicial + color por línea de juego, no un
   // ícono genérico sin sentido

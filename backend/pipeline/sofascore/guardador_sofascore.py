@@ -10,8 +10,14 @@ def guardar_stats_sofascore(
     stats: EstadisticaSofascore,
 ) -> bool:
     """
-    Guarda estadísticas de Sofascore en BD.
-    Si ya existen para ese partido las actualiza.
+    Guarda estadísticas de Sofascore en BD — upsert por partido_id.
+
+    Antes saltaba entero si ya existía una fila ("ya existen — Saltando"),
+    nunca actualizaba — funcionaba para el job diario post-partido (una
+    sola foto final), pero bloquea en vivo: la primera corrida guardaba
+    xG/tiros del minuto 20, y todas las corridas siguientes durante el
+    mismo partido quedaban sin efecto — mismo bug de fondo que tenía
+    guardar_jugadores (ver docstring ahí), mismo arreglo acá.
     """
     existente = (
         db.query(EstadisticaSofascore)
@@ -19,13 +25,18 @@ def guardar_stats_sofascore(
         .first()
     )
 
-    if existente:
-        log.info(f"Stats ya existen para el partido: {stats.partido_id} -Saltando")
-        return False
+    if existente is None:
+        db.add(stats)
+        db.commit()
+        log.info(f"Stats guardado para el partido: {stats.partido_id}")
+        return True
 
-    db.add(stats)
+    for columna in EstadisticaSofascore.__table__.columns.keys():
+        if columna in ("id", "partido_id"):
+            continue
+        setattr(existente, columna, getattr(stats, columna))
     db.commit()
-    log.info(f"Stats guardado para el partido: {stats.partido_id}")
+    log.info(f"Stats actualizado para el partido: {stats.partido_id}")
     return True
 
 

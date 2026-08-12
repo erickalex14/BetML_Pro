@@ -122,23 +122,36 @@ class ParlaySugeridoModel extends ParlaySugerido {
 class RecomendadasModel extends Recomendadas {
   const RecomendadasModel({
     required super.fecha,
-    required super.apuestasIndividuales,
-    required super.combinadasMismoPartido,
-    required super.parlaysSugeridos,
+    required super.individualesFijas,
+    required super.individualesSonadoras,
+    required super.combinadasFijas,
+    required super.combinadasSonadoras,
+    required super.parlaysFijas,
+    required super.parlaysSonadoras,
   });
 
   factory RecomendadasModel.fromJson(Map<String, dynamic> json) {
+    List<ApuestaIndividualModel> individuales(String bucket) =>
+        ((json['apuestas_individuales'] as Map<String, dynamic>? ?? {})[bucket] as List? ?? [])
+            .map((a) => ApuestaIndividualModel.fromJson(a))
+            .toList();
+    List<CombinadaMismoPartidoModel> combinadas(String bucket) =>
+        ((json['combinadas_mismo_partido'] as Map<String, dynamic>? ?? {})[bucket] as List? ?? [])
+            .map((c) => CombinadaMismoPartidoModel.fromJson(c))
+            .toList();
+    List<ParlaySugeridoModel> parlays(String bucket) =>
+        ((json['parlays_sugeridos'] as Map<String, dynamic>? ?? {})[bucket] as List? ?? [])
+            .map((p) => ParlaySugeridoModel.fromJson(p))
+            .toList();
+
     return RecomendadasModel(
       fecha: json['fecha'] ?? '',
-      apuestasIndividuales: (json['apuestas_individuales'] as List? ?? [])
-          .map((a) => ApuestaIndividualModel.fromJson(a))
-          .toList(),
-      combinadasMismoPartido: (json['combinadas_mismo_partido'] as List? ?? [])
-          .map((c) => CombinadaMismoPartidoModel.fromJson(c))
-          .toList(),
-      parlaysSugeridos: (json['parlays_sugeridos'] as List? ?? [])
-          .map((p) => ParlaySugeridoModel.fromJson(p))
-          .toList(),
+      individualesFijas: individuales('fijas'),
+      individualesSonadoras: individuales('sonadoras'),
+      combinadasFijas: combinadas('fijas'),
+      combinadasSonadoras: combinadas('sonadoras'),
+      parlaysFijas: parlays('fijas'),
+      parlaysSonadoras: parlays('sonadoras'),
     );
   }
 }

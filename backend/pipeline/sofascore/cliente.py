@@ -32,6 +32,12 @@ LIGAS_SOFASCORE = {
     "LigaPro Ecuador":      240,
     "Eredivisie":           37,
     "Saudi Pro League":     955,
+    # Nombres a la IZQUIERDA = como se llama la liga en NUESTRA BD
+    # (backend/pipeline/config.py LIGAS), no como la llama Sofascore —
+    # el cruce en job_alineaciones.py es por ese nombre. Ids sacados de
+    # /sport/football/scheduled-tournaments/{fecha} (2026-08-12).
+    "UEFA Super Cup":       465,   # Sofascore: "UEFA Super Cup"
+    "Friendlies Clubs":     853,   # Sofascore: "Club Friendly Games"
 }
 
 # IDs de temporadas por liga — extraídos directamente de Sofascore
@@ -338,20 +344,18 @@ class SofascoreCliente:
             return []
         return data.get("events", [])
 
-    def get_proximos_partidos_liga_temporada(
-        self,
-        liga_id: int,
-        temporada_id: int,
-        pagina: int = 0
-    ) -> list:
-        """Partidos NO jugados todavía de una liga y temporada —
-        /events/next/, lo que hace falta para anclar sofascore_id ANTES
-        del kickoff (get_partidos_liga_temporada trae solo los ya
-        jugados, sirve para historial pero no para esto)."""
-        data = self.get(
-            f"/unique-tournament/{liga_id}/season/{temporada_id}"
-            f"/events/next/{pagina}"
-        )
+    def get_partidos_liga_fecha(self, liga_id: int, fecha: str) -> list:
+        """Partidos de una liga en una FECHA puntual — jugados, en vivo o
+        por jugar. Es lo que hace falta para anclar sofascore_id de los
+        partidos de hoy (ver job_alineaciones.py).
+
+        Endpoint sacado de inspeccionar el tráfico real de sofascore.com
+        (2026-08-12), no de adivinar rutas: es el mismo que su web usa
+        para pintar la grilla del día. Las alternativas que se probaron
+        antes fallan — /sport/football/scheduled-events/{fecha} da 404
+        (en api. y en www.), y /events/next/ también 404. No requiere
+        season_id, solo el id de torneo (LIGAS_SOFASCORE)."""
+        data = self.get(f"/unique-tournament/{liga_id}/scheduled-events/{fecha}")
         if not data:
             return []
         return data.get("events", [])

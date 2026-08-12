@@ -190,6 +190,7 @@ def parsear_jugadores(
                 xg_individual        = stats.get("expectedGoals"),
                 tiros                = stats.get("totalShots"),
                 tiros_arco           = stats.get("shotsOnTarget"),
+                atajadas             = stats.get("saves"),
 
                 pases_clave          = stats.get("keyPass"),
                 grandes_ocasiones    = stats.get("bigChanceCreated"),

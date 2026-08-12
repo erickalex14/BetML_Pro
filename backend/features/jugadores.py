@@ -130,6 +130,7 @@ def calcular_forma_jugador(db: Session, sofascore_jugador_id: int, fecha_limite,
         # "tackles" separada en Sofascore, duelos_ganados es el proxy más
         # cercano que ya tenemos guardado (duelo defensivo ganado)
         "duelos_prom": promedio_conteo("duelos_ganados"),
+        "atajadas_prom": promedio_conteo("atajadas"),
         "prob_amarilla": sum(1 for f in filas if f.amarilla) / n_filas,
         "prob_roja": sum(1 for f in filas if f.roja) / n_filas,
         "minutos_prom": promedio_excluyendo_nulos("minutos_jugados", 90.0),

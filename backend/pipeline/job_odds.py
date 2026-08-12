@@ -101,7 +101,7 @@ def _parsear_bookmaker(bookmaker: dict) -> dict:
     return resultado
 
 
-def correr_job_odds(dias_adelante: int = 2, max_requests: int = 40):
+def correr_job_odds(dias_adelante: int = 2, max_requests: int = 20):
     log.info("=" * 55)
     log.info("  Job Cuotas — BetML Pro")
     log.info("=" * 55)

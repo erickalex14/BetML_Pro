@@ -96,6 +96,56 @@ class PrediccionService:
             "resumen_h2h": resumen_h2h,
         }
 
+    def predecir_en_vivo(self, partido: Partido, n_simulaciones: int = 8000) -> dict | None:
+        """Recalcula 1X2 y mercados de gol EN VIVO dado el marcador y
+        minuto actuales — no es un modelo nuevo entrenado aparte: escala
+        el xG pre-partido (Sofascore si ya hay stats en vivo, si no la
+        misma heurística prob→xG que /recomendadas) por el tiempo que
+        falta, simula el resto del partido con Monte Carlo, y le suma el
+        marcador ya jugado antes de calcular todo (ver goles_local_base/
+        visit_base en montecarlo.simular_partido). None si el partido no
+        está en juego o falta el minuto — ver estimar_fraccion_restante."""
+        from backend.models.montecarlo import simular_partido, estimar_fraccion_restante
+
+        fraccion = estimar_fraccion_restante(partido.estado, partido.minuto)
+        if fraccion is None:
+            return None
+
+        pred = self.predecir(partido)
+        if not pred:
+            return None
+
+        stats = partido.stats_sofascore
+        if stats and stats.xg_local and stats.xg_visitante:
+            xg_local_total = stats.xg_local
+            xg_visit_total = stats.xg_visitante
+        else:
+            xg_local_total = max(0.3, pred["prob_local"] * 2.5)
+            xg_visit_total = max(0.3, pred["prob_visitante"] * 2.5)
+
+        goles_local_actual = partido.goles_local or 0
+        goles_visit_actual = partido.goles_visitante or 0
+
+        montecarlo = simular_partido(
+            xg_local_total * fraccion, xg_visit_total * fraccion,
+            n_simulaciones=n_simulaciones,
+            goles_local_base=goles_local_actual,
+            goles_visit_base=goles_visit_actual,
+            incluir_handicap=True,
+        )
+
+        return {
+            "partido_id": partido.id,
+            "estado": partido.estado,
+            "minuto": partido.minuto,
+            "marcador_actual": f"{goles_local_actual}-{goles_visit_actual}",
+            "fraccion_restante": round(fraccion, 3),
+            "prob_local": montecarlo["prob_local"],
+            "prob_empate": montecarlo["prob_empate"],
+            "prob_visitante": montecarlo["prob_visitante"],
+            "montecarlo": montecarlo,
+        }
+
     def _generar_mercados(self, prob_l: float,
                           prob_e: float,
                           prob_v: float) -> list[dict]:

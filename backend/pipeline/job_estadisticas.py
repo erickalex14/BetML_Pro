@@ -9,7 +9,14 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-MAX_REQUESTS = 80
+MAX_REQUESTS = 70  # reparto del presupuesto diario (100/día) — ver
+                    # backend/pipeline/presupuesto.py. Se subió de 25 a
+                    # 70 al sacar del scheduler los jobs EN VIVO de
+                    # API-Football (ahora el vivo lo cubre Sofascore,
+                    # gratis): lo fijo pasó a ser ~22 (fixtures 2 +
+                    # cuotas 20), así que sobra cuota para stats.
+                    # Lo que no llega a tiempo se guarda para la próxima
+                    # corrida (ya lo hace el filtro de "sin stats").
 
 # Solo traemos stats de temporadas actuales
 # Plan free permite hasta 2024, los partidos de hoy

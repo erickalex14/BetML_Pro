@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../domain/usecases/get_detalle_partido.dart';
+import '../../domain/usecases/get_prediccion_en_vivo.dart';
 import '../../data/repositories/partido_repo_impl.dart';
 import '../../domain/entities/partido.dart';
 import '../../domain/entities/prediccion.dart';
@@ -20,24 +22,47 @@ class DetalleScreen extends StatefulWidget {
 
 class _DetalleScreenState extends State<DetalleScreen> {
   late final GetDetallePartido _getDetalle;
+  late final GetPrediccionEnVivo _getPrediccionEnVivo;
   Partido? _partido;
+  PrediccionEnVivo? _prediccionEnVivo;
   bool _cargando = true;
   String? _error;
+  Timer? _autoRefresh;
 
   @override
   void initState() {
     super.initState();
-    _getDetalle = GetDetallePartido(PartidoRepositoryImpl.create());
+    final repo = PartidoRepositoryImpl.create();
+    _getDetalle = GetDetallePartido(repo);
+    _getPrediccionEnVivo = GetPrediccionEnVivo(repo);
     _cargar();
+  }
+
+  @override
+  void dispose() {
+    _autoRefresh?.cancel();
+    super.dispose();
   }
 
   Future<void> _cargar() async {
     final result = await _getDetalle(widget.partidoId);
+    if (!mounted) return;
     setState(() {
       _partido = result.partido;
       _error = result.error?.mensaje;
       _cargando = false;
     });
+    // Solo pollea mientras el partido está en juego — antes/después no
+    // hay nada que vaya a cambiar entre refrescos.
+    _autoRefresh?.cancel();
+    if (_partido != null && _partido!.enJuego) {
+      final enVivo = await _getPrediccionEnVivo(widget.partidoId);
+      if (!mounted) return;
+      setState(() => _prediccionEnVivo = enVivo.prediccion);
+      _autoRefresh = Timer(const Duration(seconds: 60), _cargar);
+    } else {
+      _prediccionEnVivo = null;
+    }
   }
 
   @override
@@ -59,14 +84,15 @@ class _DetalleScreenState extends State<DetalleScreen> {
           ? Center(child: CircularProgressIndicator(color: c.pitch))
           : _error != null
               ? Center(child: Text(_error!, style: TextStyle(color: c.brick)))
-              : _Contenido(partido: _partido!),
+              : _Contenido(partido: _partido!, prediccionEnVivo: _prediccionEnVivo),
     );
   }
 }
 
 class _Contenido extends StatelessWidget {
   final Partido partido;
-  const _Contenido({required this.partido});
+  final PrediccionEnVivo? prediccionEnVivo;
+  const _Contenido({required this.partido, this.prediccionEnVivo});
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +102,10 @@ class _Contenido extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _Header(partido: partido),
+        if (partido.enJuego && prediccionEnVivo != null) _Seccion(
+          titulo: 'Probabilidad en vivo',
+          child: _ProbabilidadEnVivo(pred: prediccionEnVivo!),
+        ),
         if (pred != null) ...[
           Center(
             child: Padding(
@@ -142,7 +172,17 @@ class _Header extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(partido.marcador, style: AppTheme.score(c, size: 22)),
+            child: Column(children: [
+              Text(partido.marcador, style: AppTheme.score(c, size: 22)),
+              if (partido.enJuego) ...[
+                const SizedBox(height: 4),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(width: 6, height: 6, decoration: BoxDecoration(color: c.brick, shape: BoxShape.circle)),
+                  const SizedBox(width: 4),
+                  Text(partido.minutoTexto, style: TextStyle(fontSize: 11, color: c.brick, fontWeight: FontWeight.w700)),
+                ]),
+              ],
+            ]),
           ),
           Expanded(
             child: Column(children: [
@@ -154,7 +194,11 @@ class _Header extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 10),
-        Text(partido.jornada ?? partido.hora, style: TextStyle(fontSize: 11, color: c.textMuted)),
+        Text(partido.fechaHoraLarga, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: c.textSecond)),
+        if (partido.jornada != null) ...[
+          const SizedBox(height: 2),
+          Text(partido.jornada!, style: TextStyle(fontSize: 11, color: c.textMuted)),
+        ],
       ]),
     );
   }
@@ -177,6 +221,40 @@ class _Seccion extends StatelessWidget {
       child,
       const SizedBox(height: 6),
     ]);
+  }
+}
+
+class _ProbabilidadEnVivo extends StatelessWidget {
+  final PrediccionEnVivo pred;
+  const _ProbabilidadEnVivo({required this.pred});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    Widget prob(String label, double valor) => Expanded(
+          child: Column(children: [
+            Text('${(valor * 100).toStringAsFixed(0)}%', style: AppTheme.score(c, size: 18).copyWith(color: c.pitch)),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(fontSize: 10.5, color: c.textSecond)),
+          ]),
+        );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(13), border: Border.all(color: c.line)),
+        child: Column(children: [
+          Row(children: [
+            prob('Local', pred.probLocal),
+            prob('Empate', pred.probEmpate),
+            prob('Visitante', pred.probVisitante),
+          ]),
+          const SizedBox(height: 8),
+          Text('Recalculado desde el marcador actual (${pred.marcadorActual}) — no la predicción pre-partido',
+              style: TextStyle(fontSize: 10.5, color: c.textMuted), textAlign: TextAlign.center),
+        ]),
+      ),
+    );
   }
 }
 

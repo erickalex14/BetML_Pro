@@ -17,6 +17,7 @@ class PartidoModel extends Partido {
     super.visitanteLogo,
     required super.fecha,
     required super.estado,
+    super.minuto,
     super.golesLocal,
     super.golesVisit,
     required super.temporada,
@@ -37,6 +38,7 @@ class PartidoModel extends Partido {
       visitanteLogo: json['visitante_logo'] as String?,
       fecha:        DateTime.tryParse(json['fecha'] ?? '') ?? DateTime.now(),
       estado:       json['estado'] ?? 'NS',
+      minuto:       json['minuto'] as int?,
       golesLocal:   json['goles_local'] as int?,
       golesVisit:   json['goles_visit'] as int?,
       temporada:    json['temporada'] ?? 2024,
@@ -80,6 +82,28 @@ class PrediccionModel extends Prediccion {
   }
 }
 
+class PrediccionEnVivoModel extends PrediccionEnVivo {
+  const PrediccionEnVivoModel({
+    required super.probLocal,
+    required super.probEmpate,
+    required super.probVisitante,
+    required super.marcadorActual,
+    super.minuto,
+    required super.fraccionRestante,
+  });
+
+  factory PrediccionEnVivoModel.fromJson(Map<String, dynamic> json) {
+    return PrediccionEnVivoModel(
+      probLocal:        (json['prob_local'] ?? 0.0).toDouble(),
+      probEmpate:       (json['prob_empate'] ?? 0.0).toDouble(),
+      probVisitante:    (json['prob_visitante'] ?? 0.0).toDouble(),
+      marcadorActual:   json['marcador_actual'] ?? '0-0',
+      minuto:           json['minuto'] as int?,
+      fraccionRestante: (json['fraccion_restante'] ?? 0.0).toDouble(),
+    );
+  }
+}
+
 class FactorModel extends Factor {
   const FactorModel({required super.factor, required super.favorece, required super.texto});
 
@@ -114,7 +138,12 @@ class PrediccionGuardadaModel extends PrediccionGuardada {
     required super.partidoId,
     super.local,
     super.visitante,
+    super.localLogo,
+    super.visitanteLogo,
     super.liga,
+    super.estado,
+    super.golesLocal,
+    super.golesVisit,
     required super.mercado,
     required super.prediccion,
     required super.probabilidad,
@@ -129,7 +158,12 @@ class PrediccionGuardadaModel extends PrediccionGuardada {
       partidoId: json['partido_id'] ?? 0,
       local: json['local'] as String?,
       visitante: json['visitante'] as String?,
+      localLogo: json['local_logo'] as String?,
+      visitanteLogo: json['visitante_logo'] as String?,
       liga: json['liga'] as String?,
+      estado: json['estado'] as String?,
+      golesLocal: json['goles_local'] as int?,
+      golesVisit: json['goles_visit'] as int?,
       mercado: json['mercado'] ?? '',
       prediccion: json['prediccion'] ?? '',
       probabilidad: (json['probabilidad'] ?? 0.0).toDouble(),

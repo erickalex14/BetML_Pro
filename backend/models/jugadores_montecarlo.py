@@ -32,6 +32,10 @@ def simular_jugador(forma: dict, n_simulaciones: int = 10000,
     asistencias = np.random.poisson(lam=max(forma["asistencias_prom"], 0.01), size=n_simulaciones)
     pases = np.random.poisson(lam=max(forma["pases_prom"], 0.01), size=n_simulaciones)
     duelos = np.random.poisson(lam=max(forma["duelos_prom"], 0.01), size=n_simulaciones)
+    # Solo tiene sentido para arqueros — jugadores de campo dan atajadas_prom≈0
+    # (Sofascore no les registra el stat), el Poisson resultante ya sale
+    # ~0 solo, no hace falta filtrar acá por posición.
+    atajadas = np.random.poisson(lam=max(forma["atajadas_prom"], 0.01), size=n_simulaciones)
 
     def over_under(arr, lineas):
         return {
@@ -60,6 +64,10 @@ def simular_jugador(forma: dict, n_simulaciones: int = 10000,
         "entradas": {
             "promedio": round(float(np.mean(duelos)), 2),
             "over_under": over_under(duelos, [1.5, 2.5, 3.5]),
+        },
+        "atajadas": {
+            "promedio": round(float(np.mean(atajadas)), 2),
+            "over_under": over_under(atajadas, [1.5, 2.5, 3.5, 4.5]),
         },
         "goles": {
             "promedio": round(float(np.mean(goles)), 2),

@@ -296,7 +296,10 @@ class _MercadoKellyRow extends StatelessWidget {
                   Expanded(
                     child: Text(m.mercado, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.text)),
                   ),
-                  if (m.esValueBet)
+                  if (m.sinCuota)
+                    Text('${(m.probabilidad * 100).toStringAsFixed(0)}% (sin cuota)',
+                        style: TextStyle(fontSize: 11, color: c.textMuted))
+                  else if (m.esValueBet)
                     Text('${m.stakePct.toStringAsFixed(1)}%',
                         style: AppTheme.score(c, size: 15).copyWith(color: c.pitch))
                   else
@@ -330,28 +333,37 @@ void _abrirDetalle(BuildContext context, KellyMercado m) {
         ),
         Text(m.mercado, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: c.text)),
         const SizedBox(height: 4),
-        Text(m.esValueBet ? 'Value bet' : 'Sin valor', style: TextStyle(fontSize: 12.5, color: m.esValueBet ? c.pitch : c.textMuted, fontWeight: FontWeight.w600)),
+        Text(
+          m.sinCuota ? 'Sin cuota de bookmaker' : (m.esValueBet ? 'Value bet' : 'Sin valor'),
+          style: TextStyle(fontSize: 12.5, color: m.sinCuota ? c.textMuted : (m.esValueBet ? c.pitch : c.textMuted), fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 18),
-        Row(children: [
+        if (m.sinCuota) ...[
           _detalleMetric('Probabilidad modelo', '${(m.probabilidad * 100).toStringAsFixed(1)}%', c),
-          _detalleMetric('Prob. implícita', '${(m.probImplicita * 100).toStringAsFixed(1)}%', c),
-        ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          _detalleMetric('Cuota del mercado', m.cuota.toStringAsFixed(2), c),
-          _detalleMetric('Cuota justa (modelo)', m.cuotaJusta.toStringAsFixed(2), c),
-        ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          _detalleMetric('Edge', '${(m.edge * 100).toStringAsFixed(1)}pp', c, destacar: m.edge > 0),
-          _detalleMetric('EV', '${(m.ev * 100).toStringAsFixed(1)}%', c, destacar: m.ev > 0),
-        ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          _detalleMetric('Stake sugerido', '${m.stakePct.toStringAsFixed(1)}%', c, destacar: m.esValueBet),
-          _detalleMetric('Stake en unidades', m.stakeUnits.toStringAsFixed(2), c, destacar: m.esValueBet),
-        ]),
-        const SizedBox(height: 18),
+          const SizedBox(height: 14),
+        ] else ...[
+          Row(children: [
+            _detalleMetric('Probabilidad modelo', '${(m.probabilidad * 100).toStringAsFixed(1)}%', c),
+            _detalleMetric('Prob. implícita', '${(m.probImplicita * 100).toStringAsFixed(1)}%', c),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            _detalleMetric('Cuota del mercado', m.cuota.toStringAsFixed(2), c),
+            _detalleMetric('Cuota justa (modelo)', m.cuotaJusta.toStringAsFixed(2), c),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            _detalleMetric('Edge', '${(m.edge * 100).toStringAsFixed(1)}pp', c, destacar: m.edge > 0),
+            _detalleMetric('EV', '${(m.ev * 100).toStringAsFixed(1)}%', c, destacar: m.ev > 0),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            _detalleMetric('Stake sugerido', '${m.stakePct.toStringAsFixed(1)}%', c, destacar: m.esValueBet),
+            _detalleMetric('Stake en unidades', m.stakeUnits.toStringAsFixed(2), c, destacar: m.esValueBet),
+          ]),
+          const SizedBox(height: 14),
+        ],
+        const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: c.bg2, borderRadius: BorderRadius.circular(11)),
@@ -616,12 +628,16 @@ class _JugadorDetalleSheetState extends State<_JugadorDetalleSheet> {
 
   List<Widget> _panelEstadisticas(AppColors c, JugadorMercado jug) => [
         Row(children: [
-          _statBox(c, 'Tiros', jug.tirosPromedio.toStringAsFixed(1)),
+          if (jug.esArquero)
+            _statBox(c, 'Atajadas', jug.atajadasPromedio.toStringAsFixed(1))
+          else
+            _statBox(c, 'Tiros', jug.tirosPromedio.toStringAsFixed(1)),
           _statBox(c, 'Al arco', jug.tirosArcoPromedio.toStringAsFixed(1)),
           _statBox(c, 'Asist.', jug.asistenciasPromedio.toStringAsFixed(1)),
           _statBox(c, 'Pases', jug.pasesPromedio.toStringAsFixed(0)),
         ]),
         const SizedBox(height: 4),
+        if (jug.esArquero) _bloqueMercado(c, 'Atajadas', jug.atajadasOverUnder),
         _bloqueMercado(c, 'Tiros', jug.tirosOverUnder),
         _bloqueMercado(c, 'Tiros al arco', jug.tirosArcoOverUnder),
         _bloqueMercado(c, 'Asistencias', jug.asistenciasOverUnder),

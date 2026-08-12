@@ -64,6 +64,18 @@ class PartidoRemoteDataSource {
     return PartidoModel.fromJson(data);
   }
 
+  // 422 = partido no está en juego (o falta el minuto todavía) — estado
+  // esperado, no un error a mostrar, se devuelve null en vez de lanzar.
+  Future<PrediccionEnVivoModel?> getPrediccionEnVivo(int partidoId) async {
+    try {
+      final data = await _get('/predicciones/$partidoId/en-vivo');
+      return PrediccionEnVivoModel.fromJson(data);
+    } on ServerFailure catch (f) {
+      if (f.statusCode == 422) return null;
+      rethrow;
+    }
+  }
+
   Future<List<PrediccionModel>> getPrediccionesHoy() async {
     final lista = await _getList(ApiConstants.prediccionesHoy);
     return lista.map((p) => PrediccionModel.fromJson(p)).toList();

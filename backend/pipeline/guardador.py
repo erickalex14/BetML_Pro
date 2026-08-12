@@ -17,6 +17,7 @@ def guardar_partido(db: Session, fixture: dict, liga_id: int, temporada: int):
     fixture_id  = fixture["fixture"]["id"]
     fecha_str   = fixture["fixture"]["date"]
     estado      = fixture["fixture"]["status"]["short"]
+    minuto      = fixture["fixture"]["status"].get("elapsed")
     jornada     = fixture["league"]["round"]
     local_id    = fixture["teams"]["home"]["id"]
     local_nombre= fixture["teams"]["home"]["name"]
@@ -55,6 +56,7 @@ def guardar_partido(db: Session, fixture: dict, liga_id: int, temporada: int):
 
     #Actualiza campos que pueden cambiar
     partido.estado          = estado
+    partido.minuto          = minuto
     partido.goles_local     = goles_l
     partido.goles_visitante = goles_v
     partido.goles_local_ht  = goles_l_ht

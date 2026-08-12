@@ -99,19 +99,31 @@ class ParlaySugerido {
   });
 }
 
+// "fijas" = alta probabilidad del modelo, para apostar con poco riesgo.
+// "sonadoras" = cuota alta / probabilidad menor pero jugosa si pega —
+// ambas siguen siendo value bets con edge positivo, no apuestas al azar
+// (ver UMBRAL_FIJA_PROB en backend/api/routes/predicciones.py).
 class Recomendadas {
   final String fecha;
-  final List<ApuestaIndividual> apuestasIndividuales;
-  final List<CombinadaMismoPartido> combinadasMismoPartido;
-  final List<ParlaySugerido> parlaysSugeridos;
+  final List<ApuestaIndividual> individualesFijas;
+  final List<ApuestaIndividual> individualesSonadoras;
+  final List<CombinadaMismoPartido> combinadasFijas;
+  final List<CombinadaMismoPartido> combinadasSonadoras;
+  final List<ParlaySugerido> parlaysFijas;
+  final List<ParlaySugerido> parlaysSonadoras;
 
   const Recomendadas({
     required this.fecha,
-    required this.apuestasIndividuales,
-    required this.combinadasMismoPartido,
-    required this.parlaysSugeridos,
+    required this.individualesFijas,
+    required this.individualesSonadoras,
+    required this.combinadasFijas,
+    required this.combinadasSonadoras,
+    required this.parlaysFijas,
+    required this.parlaysSonadoras,
   });
 
   bool get vacio =>
-      apuestasIndividuales.isEmpty && combinadasMismoPartido.isEmpty && parlaysSugeridos.isEmpty;
+      individualesFijas.isEmpty && individualesSonadoras.isEmpty &&
+      combinadasFijas.isEmpty && combinadasSonadoras.isEmpty &&
+      parlaysFijas.isEmpty && parlaysSonadoras.isEmpty;
 }

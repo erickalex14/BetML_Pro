@@ -298,7 +298,17 @@ class _LedgerRow extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 8),
-          Text(partido.marcador, style: AppTheme.score(c, size: 12, weight: FontWeight.w500).copyWith(color: c.textSecond)),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(partido.marcador, style: AppTheme.score(c, size: 12, weight: FontWeight.w500).copyWith(color: c.textSecond)),
+            if (partido.enJuego) ...[
+              const SizedBox(height: 2),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(width: 5, height: 5, decoration: BoxDecoration(color: c.brick, shape: BoxShape.circle)),
+                const SizedBox(width: 3),
+                Text(partido.minutoTexto, style: TextStyle(fontSize: 9.5, color: c.brick, fontWeight: FontWeight.w600)),
+              ]),
+            ],
+          ]),
           const SizedBox(width: 10),
           Container(
             width: 32, height: 32,

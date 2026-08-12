@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../domain/entities/prediccion.dart';
 import '../../domain/usecases/get_predicciones_mias.dart';
 import '../../data/repositories/partido_repo_impl.dart';
 import '../widgets/app_bottom_nav.dart';
+import '../widgets/team_logo.dart';
 
 class MisPrediccionesScreen extends StatefulWidget {
   const MisPrediccionesScreen({super.key});
@@ -65,11 +67,14 @@ class _MisPrediccionesScreenState extends State<MisPrediccionesScreen> {
                   Expanded(
                     child: visibles.isEmpty
                         ? Center(child: Text('Sin predicciones acá', style: TextStyle(color: c.textSecond)))
-                        : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                            itemCount: visibles.length,
-                            itemBuilder: (_, i) => _PrediccionRow(p: visibles[i]),
-                          ),
+                        : Builder(builder: (_) {
+                            final grupos = PrediccionesDePartido.agrupar(visibles);
+                            return ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                              itemCount: grupos.length,
+                              itemBuilder: (_, i) => _GrupoPartido(grupo: grupos[i]),
+                            );
+                          }),
                   ),
                 ]),
       bottomNavigationBar: const AppBottomNav(current: AppTab.predicciones),
@@ -150,9 +155,111 @@ class _FiltroChips extends StatelessWidget {
   }
 }
 
-class _PrediccionRow extends StatelessWidget {
+// Una tarjeta por PARTIDO, con sus mercados adentro — antes cada
+// mercado era una tarjeta suelta y un partido con 4 predicciones
+// repetía 4 veces los nombres de los equipos.
+class _GrupoPartido extends StatelessWidget {
+  final PrediccionesDePartido grupo;
+  const _GrupoPartido({required this.grupo});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return InkWell(
+      onTap: () => context.go('/partido/${grupo.partidoId}'),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: c.line),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+            child: Row(children: [
+              SizedBox(
+                width: 44,
+                child: Stack(children: [
+                  TeamLogo(url: grupo.localLogo, nombre: grupo.local ?? '?', size: 22),
+                  Positioned(
+                    left: 14,
+                    child: Container(
+                      padding: const EdgeInsets.all(1.5),
+                      decoration: BoxDecoration(color: c.surface, shape: BoxShape.circle),
+                      child: TeamLogo(url: grupo.visitanteLogo, nombre: grupo.visitante ?? '?', size: 22),
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${grupo.local ?? '?'} — ${grupo.visitante ?? '?'}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text)),
+                  const SizedBox(height: 2),
+                  Text(grupo.liga ?? '', style: AppTheme.eyebrow(c)),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                if (grupo.marcador.isNotEmpty)
+                  Text(grupo.marcador,
+                      style: AppTheme.score(c, size: 13).copyWith(color: c.text)),
+                if (grupo.enJuego) ...[
+                  const SizedBox(height: 2),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(width: 5, height: 5, decoration: BoxDecoration(color: c.brick, shape: BoxShape.circle)),
+                    const SizedBox(width: 3),
+                    Text('EN VIVO', style: TextStyle(fontSize: 8.5, color: c.brick, fontWeight: FontWeight.w700)),
+                  ]),
+                ],
+              ]),
+            ]),
+          ),
+          // Resumen del partido — solo si hay más de un mercado, si no
+          // el detalle de abajo ya lo dice todo
+          if (grupo.predicciones.length > 1)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(13, 0, 13, 8),
+              child: Row(children: [
+                if (grupo.acertadas > 0) _pill(c, '${grupo.acertadas} acertó', c.pitch),
+                if (grupo.falladas > 0) _pill(c, '${grupo.falladas} falló', c.brick),
+                if (grupo.pendientes > 0) _pill(c, '${grupo.pendientes} pendiente', c.ledger),
+              ]),
+            ),
+          Divider(height: 1, color: c.line),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(13, 6, 13, 10),
+            child: Column(
+              children: [for (final p in grupo.predicciones) _MercadoRow(p: p)],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _pill(AppColors c, String texto, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.13),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Text(texto, style: TextStyle(fontSize: 9.5, color: color, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
+class _MercadoRow extends StatelessWidget {
   final PrediccionGuardada p;
-  const _PrediccionRow({required this.p});
+  const _MercadoRow({required this.p});
 
   @override
   Widget build(BuildContext context) {
@@ -167,27 +274,16 @@ class _PrediccionRow extends StatelessWidget {
       estadoColor = c.brick; estadoTexto = 'Falló';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: c.line),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(children: [
-        Container(width: 3, height: 34, decoration: BoxDecoration(color: estadoColor, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 11),
+        Container(width: 3, height: 22, decoration: BoxDecoration(color: estadoColor, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 10),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (p.local != null)
-              Text('${p.local} vs ${p.visitante}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: c.text)),
-            const SizedBox(height: 2),
-            Text('${p.prediccion} · ${(p.probabilidad * 100).toStringAsFixed(0)}%',
-                style: TextStyle(fontSize: 11.5, color: c.textSecond)),
-          ]),
+          child: Text('${p.prediccion} · ${(p.probabilidad * 100).toStringAsFixed(0)}%',
+              style: TextStyle(fontSize: 12, color: c.textSecond)),
         ),
-        Text(estadoTexto, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: estadoColor)),
+        Text(estadoTexto, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: estadoColor)),
       ]),
     );
   }

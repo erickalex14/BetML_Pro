@@ -55,6 +55,7 @@ def _hay_algo_para_actualizar(db) -> bool:
 def correr_job_partidos_en_vivo():
     from backend.pipeline.pipeline_dia import correr_pipeline
     from backend.pipeline.job_cerrar_predicciones import correr_job_cerrar_predicciones
+    from backend.pipeline.presupuesto import hay_presupuesto
 
     db = SessionLocal()
     try:
@@ -63,6 +64,13 @@ def correr_job_partidos_en_vivo():
             return
     finally:
         db.close()
+
+    # Prioridad alta pero no infinita — reserva 10 para que los jobs
+    # nocturnos críticos (fixtures/estadísticas/odds pre-partido) no se
+    # queden sin presupuesto si hoy hay partidos en vivo muchas horas.
+    if not hay_presupuesto(10):
+        log.warning("Presupuesto de API-Football bajo (<10) — se salta este ciclo")
+        return
 
     log.info("Hay partidos en vivo/por arrancar — refrescando")
     correr_pipeline()  # 1 request, upsert de estado/goles de TODO el día

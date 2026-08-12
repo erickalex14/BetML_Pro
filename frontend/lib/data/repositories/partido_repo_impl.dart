@@ -110,4 +110,17 @@ class PartidoRepositoryImpl implements PartidoRepository {
       return (recomendadas: null, error: NetworkFailure(e.toString()));
     }
   }
+
+  @override
+  Future<({PrediccionEnVivo? prediccion, Failure? error})>
+    getPrediccionEnVivo(int partidoId) async {
+    try {
+      final r = await _dataSource.getPrediccionEnVivo(partidoId);
+      return (prediccion: r as PrediccionEnVivo?, error: null);
+    } on Failure catch (f) {
+      return (prediccion: null, error: f);
+    } catch (e) {
+      return (prediccion: null, error: NetworkFailure(e.toString()));
+    }
+  }
 }

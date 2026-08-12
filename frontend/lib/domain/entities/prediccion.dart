@@ -32,6 +32,27 @@ class Prediccion {
         ..sort((a, b) => b.probabilidad.compareTo(a.probabilidad));
 }
 
+// Recalculo EN VIVO — GET /predicciones/{id}/en-vivo. Distinto de
+// Prediccion (esa es pre-partido): esta ya suma el marcador actual y
+// escala el xG por el tiempo que falta.
+class PrediccionEnVivo {
+  final double probLocal;
+  final double probEmpate;
+  final double probVisitante;
+  final String marcadorActual;
+  final int? minuto;
+  final double fraccionRestante;
+
+  const PrediccionEnVivo({
+    required this.probLocal,
+    required this.probEmpate,
+    required this.probVisitante,
+    required this.marcadorActual,
+    this.minuto,
+    required this.fraccionRestante,
+  });
+}
+
 // "favorece": "local" | "visitante" | "parejo" — mismo vocabulario que
 // devuelve backend/models/explicacion.py, sin traducir a otra cosa acá.
 class Factor {
@@ -64,7 +85,12 @@ class PrediccionGuardada {
   final int partidoId;
   final String? local;
   final String? visitante;
+  final String? localLogo;
+  final String? visitanteLogo;
   final String? liga;
+  final String? estado;
+  final int? golesLocal;
+  final int? golesVisit;
   final String mercado;
   final String prediccion;
   final double probabilidad;
@@ -77,7 +103,12 @@ class PrediccionGuardada {
     required this.partidoId,
     this.local,
     this.visitante,
+    this.localLogo,
+    this.visitanteLogo,
     this.liga,
+    this.estado,
+    this.golesLocal,
+    this.golesVisit,
     required this.mercado,
     required this.prediccion,
     required this.probabilidad,
@@ -87,6 +118,67 @@ class PrediccionGuardada {
   });
 
   bool get pendiente => acerto == null;
+  bool get terminado => estado == 'FT';
+  bool get enJuego => ['1H', 'HT', '2H', 'ET'].contains(estado);
+
+  String get marcador =>
+      golesLocal != null ? '$golesLocal - ${golesVisit ?? 0}' : '';
+}
+
+// Predicciones de UN partido, agrupadas — la pantalla "Mis
+// predicciones" mostraba una tarjeta suelta por mercado, así que un
+// partido con 4 mercados guardados ocupaba 4 filas repitiendo los
+// mismos nombres de equipo.
+class PrediccionesDePartido {
+  final int partidoId;
+  final String? local;
+  final String? visitante;
+  final String? localLogo;
+  final String? visitanteLogo;
+  final String? liga;
+  final String? estado;
+  final String marcador;
+  final List<PrediccionGuardada> predicciones;
+
+  const PrediccionesDePartido({
+    required this.partidoId,
+    this.local,
+    this.visitante,
+    this.localLogo,
+    this.visitanteLogo,
+    this.liga,
+    this.estado,
+    required this.marcador,
+    required this.predicciones,
+  });
+
+  int get acertadas => predicciones.where((p) => p.acerto == true).length;
+  int get falladas => predicciones.where((p) => p.acerto == false).length;
+  int get pendientes => predicciones.where((p) => p.pendiente).length;
+  bool get terminado => estado == 'FT';
+  bool get enJuego => ['1H', 'HT', '2H', 'ET'].contains(estado);
+
+  /// Agrupa conservando el orden en que vino cada partido.
+  static List<PrediccionesDePartido> agrupar(List<PrediccionGuardada> todas) {
+    final porPartido = <int, List<PrediccionGuardada>>{};
+    for (final p in todas) {
+      porPartido.putIfAbsent(p.partidoId, () => []).add(p);
+    }
+    return porPartido.entries.map((e) {
+      final primera = e.value.first;
+      return PrediccionesDePartido(
+        partidoId: e.key,
+        local: primera.local,
+        visitante: primera.visitante,
+        localLogo: primera.localLogo,
+        visitanteLogo: primera.visitanteLogo,
+        liga: primera.liga,
+        estado: primera.estado,
+        marcador: primera.marcador,
+        predicciones: e.value,
+      );
+    }).toList();
+  }
 }
 
 class StatsModelo {

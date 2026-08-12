@@ -153,14 +153,40 @@ def analizar_mercados_kelly(
                     de la fórmula de Poisson, no de un clasificador que haga
                     falta calibrar de la misma forma.
 
-    Retorna lista de mercados ordenados por EV descendente.
+    Mercados sin cuota real del bookmaker (ej. goles por equipo — API-Football
+    solo cotiza esa línea por mitad de partido, no el partido completo) NO se
+    descartan: se devuelven igual con cuota=None/es_value_bet=False/
+    sin_cuota=True, para mostrar al menos la probabilidad del modelo en vez
+    de desaparecer en silencio (antes se perdían sin aviso).
+
+    Retorna lista de mercados ordenados por EV descendente (los sin cuota
+    van al final, ev=0).
     """
     mercados = []
     analisis = construir_lista_mercados(prediccion, montecarlo)
 
     for nombre_mercado, prob, odds_key, clase_calib in analisis:
+        if prob <= 0:
+            continue
         cuota = odds.get(odds_key, 0)
-        if cuota <= 1.0 or prob <= 0:
+
+        if cuota <= 1.0:
+            mercados.append({
+                "mercado":        nombre_mercado,
+                "clave":          odds_key.removeprefix("odds_"),
+                "probabilidad":   round(prob, 4),
+                "cuota":          None,
+                "ev":             0.0,
+                "edge":           0.0,
+                "es_value_bet":   False,
+                "sin_cuota":      True,
+                "stake_pct":      0.0,
+                "stake_units":    0.0,
+                "cuota_justa":    round(1 / prob, 2),
+                "prob_implicita": None,
+                "factor_confianza": 1.0,
+                "mensaje":        "Sin cuota de bookmaker disponible — probabilidad del modelo",
+            })
             continue
 
         factor = 1.0
@@ -179,6 +205,7 @@ def analizar_mercados_kelly(
             "ev":             kelly["ev"],
             "edge":           kelly["edge"],
             "es_value_bet":   kelly["es_value_bet"],
+            "sin_cuota":      False,
             "stake_pct":      round(kelly["stake_kelly"] * 100, 2),
             "stake_units":    round(stake_unidades, 2),
             "cuota_justa":    kelly["cuota_justa"],
@@ -218,6 +245,13 @@ def construir_lista_mercados(prediccion: dict, montecarlo: Optional[dict] = None
     if montecarlo:
         ou_goles = montecarlo.get("over_under", {})
         analisis += _expandir_over_under("Goles", "goles", ou_goles)
+
+        if "goles_equipo_local" in montecarlo:
+            analisis += _expandir_over_under(
+                "Goles Local", "goles_equipo_local", montecarlo["goles_equipo_local"])
+        if "goles_equipo_visit" in montecarlo:
+            analisis += _expandir_over_under(
+                "Goles Visitante", "goles_equipo_visit", montecarlo["goles_equipo_visit"])
 
         if "btts_si" in montecarlo:
             analisis.append(("BTTS Sí", montecarlo["btts_si"], "odds_btts_si", None))

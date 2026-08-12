@@ -43,6 +43,7 @@ class PartidoService:
             "fecha":       str(partido.fecha),
             "hora":        str(partido.fecha)[11:16],
             "estado":      partido.estado,
+            "minuto":      partido.minuto,
             "goles_local": partido.goles_local,
             "goles_visit": partido.goles_visitante,
             "temporada":   partido.temporada,

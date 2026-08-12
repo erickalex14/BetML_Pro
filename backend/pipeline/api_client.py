@@ -26,6 +26,15 @@ Retorna:
 """
 
 def get(endpoint: str, params: dict = None) -> dict:
+    from backend.pipeline.presupuesto import registrar_uso, restantes
+
+    # Corte duro de seguridad — nunca pasar de 100/día (plan free), pase
+    # lo que pase con los chequeos de cada job (ver presupuesto.py). No
+    # se aplica a /status, ese endpoint es meta y no cuenta cuota.
+    if endpoint != "/status" and restantes() <= 0:
+        log.error(f"Presupuesto diario de API-Football agotado — se descarta {endpoint}")
+        return {}
+
     url = f"{BASE_URL}{endpoint}"
 
     log.info(f"Llamando: {url} | params: {params}")
@@ -62,6 +71,12 @@ def get(endpoint: str, params: dict = None) -> dict:
         return {}
 
     finally:
+        # Cuenta el intento contra el presupuesto diario (éxito o error —
+        # API-Football cuenta el request igual). /status es meta, no
+        # gasta cuota, no se cuenta acá tampoco.
+        if endpoint != "/status":
+            usados_hoy = registrar_uso()
+            log.info(f"Presupuesto API-Football: {usados_hoy}/100 usados hoy")
         # Pausa de 7 segundos entre cada request.
         time.sleep(7)
 

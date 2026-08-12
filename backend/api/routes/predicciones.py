@@ -96,7 +96,14 @@ def predicciones_mias(estado: Optional[str] = None, db: Session = Depends(get_db
             "partido_id": f.partido_id,
             "local": partido.equipo_local.nombre if partido else None,
             "visitante": partido.equipo_visitante.nombre if partido else None,
+            # escudos para agrupar por partido en la UI — mismo campo
+            # logo_url que ya usa /partidos (ver PartidoService)
+            "local_logo": partido.equipo_local.logo_url if partido else None,
+            "visitante_logo": partido.equipo_visitante.logo_url if partido else None,
             "liga": partido.liga.nombre if partido else None,
+            "estado": partido.estado if partido else None,
+            "goles_local": partido.goles_local if partido else None,
+            "goles_visit": partido.goles_visitante if partido else None,
             "mercado": f.mercado,
             "prediccion": f.prediccion,
             "probabilidad": f.probabilidad,
@@ -333,6 +340,35 @@ def montecarlo_partido(
         "fuente_xg":     fuente_xg,
         "n_simulaciones":n_simulaciones,
     }
+
+
+@router.get("/{partido_id}/en-vivo")
+def prediccion_en_vivo(
+    partido_id:     int,
+    n_simulaciones: int = 8000,
+    db: Session = Depends(get_db)
+):
+    """
+    Probabilidades EN VIVO — recalcula 1X2 y mercados de gol dado el
+    marcador y minuto actuales (no un modelo nuevo, Monte Carlo desde
+    ahora, ver PrediccionService.predecir_en_vivo). 422 si el partido no
+    está en juego, o no tiene minuto (elapsed) todavía.
+    """
+    from backend.repositories.partido_repo import PartidoRepository
+    from backend.services.prediccion_service import PrediccionService
+
+    repo    = PartidoRepository(db)
+    partido = repo.get_por_id(partido_id)
+    if not partido:
+        raise HTTPException(status_code=404, detail="Partido no encontrado")
+
+    resultado = PrediccionService(db).predecir_en_vivo(partido, n_simulaciones)
+    if resultado is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Partido no está en juego, o falta el minuto todavía, o sin historial suficiente para predecir"
+        )
+    return resultado
 
 
 @router.get("/{partido_id}/kelly/portafolio")
@@ -673,7 +709,10 @@ def predicciones_recomendadas(
 ):
     """
     Escanea TODOS los partidos de HOY con predicción + cuotas guardadas
-    y arma tres cosas:
+    y arma tres cosas, cada una partida en "fijas" (alta probabilidad,
+    para apostar con poco riesgo) y "sonadoras" (cuota alta, probabilidad
+    menor, pero jugosas si pegan — todas siguen siendo value bets, con
+    edge positivo, no son apuestas al azar):
       1. apuestas_individuales — las mejores value bets por EV, de
          cualquier mercado y cualquier partido (mismo cálculo que /kelly,
          corrido para todos los partidos en vez de uno).
@@ -683,13 +722,18 @@ def predicciones_recomendadas(
       3. parlays_sugeridos — combinadas entre partidos DISTINTOS, armadas
          con la mejor pata (mayor EV) de cada partido — mismo principio
          de independencia que POST /combinada, acá elegido automático
-         en vez de que el usuario seleccione a mano.
+         en vez de que el usuario seleccione a mano. "fijas" arma con las
+         patas de mayor probabilidad, "sonadoras" con las de mayor cuota.
 
     Vivo, no cacheado — recorre todos los partidos de hoy en cada
     request (unos segundos con ~20-30 partidos). Si se vuelve lento,
     cachear por un rato es la mejora obvia; no se hizo de entrada
     porque no hay todavía evidencia de que haga falta.
     """
+    # ponytail: corte fijo — no hay curva de "qué tan segura se siente
+    # una probabilidad" ajustada a datos propios todavía, 0.55 es el
+    # punto donde el modelo ya favorece claramente un lado.
+    UMBRAL_FIJA_PROB = 0.55
     from datetime import date
     from backend.repositories.partido_repo import PartidoRepository
     from backend.models.odds_service import obtener_mejores_odds
@@ -781,18 +825,24 @@ def predicciones_recomendadas(
                 combinadas_partido.append({**info_partido, "portafolio": portafolio})
 
     individuales.sort(key=lambda m: m["ev"], reverse=True)
-    individuales = individuales[:top_individuales]
+    individuales_fijas = [m for m in individuales if m["probabilidad"] >= UMBRAL_FIJA_PROB][:top_individuales]
+    individuales_sonadoras = [m for m in individuales if m["probabilidad"] < UMBRAL_FIJA_PROB][:top_individuales]
 
     combinadas_partido.sort(key=lambda c: c["portafolio"]["ev_portafolio"], reverse=True)
-    combinadas_partido = combinadas_partido[:5]
 
-    parlays = []
-    if len(mejor_por_partido) >= 2:
-        por_prob = sorted(mejor_por_partido, key=lambda m: m["prob"], reverse=True)
+    def _prob_promedio_portafolio(c: dict) -> float:
+        mercados = c["portafolio"]["mercados"]
+        return sum(m["probabilidad"] for m in mercados) / len(mercados) if mercados else 0.0
+
+    combinadas_fijas = [c for c in combinadas_partido if _prob_promedio_portafolio(c) >= UMBRAL_FIJA_PROB][:5]
+    combinadas_sonadoras = [c for c in combinadas_partido if _prob_promedio_portafolio(c) < UMBRAL_FIJA_PROB][:5]
+
+    def _armar_parlays(candidatos: list) -> list:
+        parlays = []
         for n in (2, 3, 4):
-            if len(por_prob) < n:
+            if len(candidatos) < n:
                 continue
-            elegidos = por_prob[:n]
+            elegidos = candidatos[:n]
             resultado = calcular_parlay_kelly(
                 [{"partido_id": s["partido_id"], "mercado": s["clave"],
                   "prob": s["prob"], "cuota": s["cuota"]} for s in elegidos],
@@ -811,10 +861,19 @@ def predicciones_recomendadas(
                 ],
                 **resultado,
             })
+        return parlays
+
+    parlays_fijas, parlays_sonadoras = [], []
+    if len(mejor_por_partido) >= 2:
+        # Fijas: arma con las patas de MAYOR probabilidad (mismo criterio
+        # de antes). Soñadoras: con las de MAYOR cuota — combos de
+        # underdogs con edge positivo, cuota combinada mucho más jugosa.
+        parlays_fijas = _armar_parlays(sorted(mejor_por_partido, key=lambda m: m["prob"], reverse=True))
+        parlays_sonadoras = _armar_parlays(sorted(mejor_por_partido, key=lambda m: m["cuota"], reverse=True))
 
     return {
         "fecha": str(date.today()),
-        "apuestas_individuales": individuales,
-        "combinadas_mismo_partido": combinadas_partido,
-        "parlays_sugeridos": parlays,
+        "apuestas_individuales": {"fijas": individuales_fijas, "sonadoras": individuales_sonadoras},
+        "combinadas_mismo_partido": {"fijas": combinadas_fijas, "sonadoras": combinadas_sonadoras},
+        "parlays_sugeridos": {"fijas": parlays_fijas, "sonadoras": parlays_sonadoras},
     }

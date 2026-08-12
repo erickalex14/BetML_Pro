@@ -22,4 +22,9 @@ abstract class PartidoRepository {
 
   Future<({Recomendadas? recomendadas, Failure? error})>
     getRecomendadas();
+
+  // null (sin error) si el partido no está en juego — estado normal,
+  // no una falla de red/servidor.
+  Future<({PrediccionEnVivo? prediccion, Failure? error})>
+    getPrediccionEnVivo(int partidoId);
 }

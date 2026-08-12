@@ -55,6 +55,7 @@ class KellyMercadoModel extends KellyMercado {
     required super.cuotaJusta,
     required super.probImplicita,
     required super.mensaje,
+    super.sinCuota,
   });
 
   factory KellyMercadoModel.fromJson(Map<String, dynamic> json) {
@@ -71,6 +72,7 @@ class KellyMercadoModel extends KellyMercado {
       cuotaJusta: (json['cuota_justa'] ?? 0.0).toDouble(),
       probImplicita: (json['prob_implicita'] ?? 0.0).toDouble(),
       mensaje: json['mensaje'] ?? '',
+      sinCuota: json['sin_cuota'] ?? false,
     );
   }
 }
@@ -99,6 +101,7 @@ class JugadorMercadoModel extends JugadorMercado {
     required super.asistenciasPromedio,
     required super.pasesPromedio,
     required super.entradasPromedio,
+    super.atajadasPromedio,
     required super.probAnota,
     required super.probAmarilla,
     required super.probRoja,
@@ -108,6 +111,7 @@ class JugadorMercadoModel extends JugadorMercado {
     required super.pasesOverUnder,
     required super.entradasOverUnder,
     required super.golesOverUnder,
+    super.atajadasOverUnder,
   });
 
   factory JugadorMercadoModel.fromJson(Map<String, dynamic> json) {
@@ -129,6 +133,7 @@ class JugadorMercadoModel extends JugadorMercado {
       asistenciasPromedio: promedioDe('asistencias'),
       pasesPromedio: promedioDe('pases'),
       entradasPromedio: promedioDe('entradas'),
+      atajadasPromedio: promedioDe('atajadas'),
       probAnota: (json['prob_anota'] ?? 0.0).toDouble(),
       probAmarilla: (json['prob_amarilla'] ?? 0.0).toDouble(),
       probRoja: (json['prob_roja'] ?? 0.0).toDouble(),
@@ -138,6 +143,7 @@ class JugadorMercadoModel extends JugadorMercado {
       pasesOverUnder: overUnderDe('pases'),
       entradasOverUnder: overUnderDe('entradas'),
       golesOverUnder: overUnderDe('goles'),
+      atajadasOverUnder: overUnderDe('atajadas'),
     );
   }
 }

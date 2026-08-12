@@ -27,13 +27,39 @@ releer todo el historial.
    verificada por script, pero el usuario todavía NO la vio corriendo en
    la app en vivo.** Es lo primero para confirmar en cuanto retomes:
    abrir `http://localhost:5050`, tab "Top" en el bottom nav, revisar
-   que carguen individuales/combinadas/parlays sin error.
-4. **Sofascore: no se encontró endpoint para "próximos partidos por
-   liga".** `/events/last/` solo trae pasados, `/events/next/{pagina}`
-   (probado, adivinado) da 404. Esto bloquea el auto-anchoring de
-   `sofascore_id` para partidos que aún no se jugaron fuera del rango
-   que ya cubre `TEMPORADAS_HISTORICAS`. Reportado honesto al usuario,
-   sin respuesta aún sobre si seguir insistiendo o dejarlo así.
+   que carguen individuales/combinadas/parlays sin error. Ahora cada
+   sección viene partida en **fijas** (prob ≥ 55%, poco riesgo) y
+   **soñadoras** (cuota alta, más riesgo) — ambas siguen siendo value
+   bets con edge positivo, el corte es `UMBRAL_FIJA_PROB` en
+   `backend/api/routes/predicciones.py`.
+
+3b. **Qué se actualiza en vivo hoy** (todo verificado con datos reales):
+   - marcador/estado/**minuto**: API-Football, cada 15 min. `minuto`
+     sale de `fixture.status.elapsed`; si la API no lo manda (ligas
+     chicas/amistosos) el badge cae a mostrar "2H" y no es bug.
+   - xG, tiros, posesión, córners, y stats por jugador (goles,
+     tarjetas, **atajadas**): Sofascore, cada 15 min, solo para
+     partidos con `sofascore_id` anclado.
+   - cuotas en vivo: API-Football `/odds/live`, cada 20 min. UNA
+     llamada trae TODOS los partidos en vivo (no cuesta por fixture).
+   - **Bug arreglado en el camino**: `guardar_stats_sofascore` saltaba
+     si ya existía fila y nunca actualizaba — servía para el job diario
+     post-partido pero hacía imposible el vivo (guardaba el minuto 20 y
+     nunca más). Ahora es upsert, igual que `guardar_jugadores`.
+4. **RESUELTO (2026-08-12 tarde): el endpoint de Sofascore por fecha.**
+   El bueno es `/unique-tournament/{id}/scheduled-events/{fecha}`,
+   sacado inspeccionando el tráfico real de sofascore.com con el
+   browser (NO adivinando rutas). Los que NO sirven, ya probados:
+   `/sport/football/scheduled-events/{fecha}` da 404 en `api.` y en
+   `www.`, y `/events/next/` también 404. Con esto el anclaje de
+   `sofascore_id` pasó de **0/33 a 16/33** partidos del día.
+   Lo que falta para llegar a 33/33: las fases de clasificación
+   (Conference/Sudamericana) viven bajo OTRO `unique-tournament` id que
+   no está mapeado, y los amistosos están repartidos en varios torneos
+   además de "Club Friendly Games" (853). El descubridor está a mano:
+   `/sport/football/scheduled-tournaments/{fecha}/page/{n}` lista todos
+   los torneos con partidos ese día (así se encontraron 465 = UEFA
+   Super Cup y 853).
 5. **Graphify actualizado — YA TERMINÓ (solo AST, sin LLM).** 1479
    nodos, 2620 edges, 95 comunidades (era 846/1572/71 al cierre de la
    sesión anterior). `graphify-out/graph.json` al día con todo el código
@@ -185,16 +211,33 @@ analizar-captura (sube imagen), y la nueva recomendadas.
 ### Scheduler (backend/scheduler/scheduler.py)
 ```
 23:55 → pipeline_dia (fixtures de hoy)
-00:30 → job_estadisticas
+00:30 → job_estadisticas          (tope 25 requests, antes 80)
 00:45 → fixtures de mañana
 01:00 → job_sofascore_diario
-01:15 → job_odds
+01:15 → job_odds                  (tope 20 requests, antes 40)
 01:30 → job_cerrar_predicciones
-03:00 diario → job_reentrenar_modelos   (antes: solo domingo)
-cada 15 min → job_alineaciones          (nuevo)
+03:00 diario → job_reentrenar_modelos
+cada 15 min → job_partidos_en_vivo      (API-Football, se frena si quedan <10)
+cada 15 min → job_alineaciones          (Sofascore, gratis)
+cada 15 min → job_sofascore_en_vivo     (Sofascore, gratis)
+cada 20 min → job_odds_en_vivo          (API-Football, se frena si quedan <20)
 ```
 Sigue sin estar deployado en producción 24/7 (VPS Ubuntu on-premise es
 el plan, decisión ya tomada por el usuario — falta ejecutarlo).
+
+### Presupuesto de API-Football (100 requests/día, plan Free)
+Confirmado vía `/status`. **Reset a medianoche UTC**, no Guayaquil.
+Antes NADA controlaba el total combinado entre jobs y se llegó a
+100/100 el 2026-08-12. Ahora:
+- Tabla `presupuesto_api_football` + `backend/pipeline/presupuesto.py`.
+- El contador vive DENTRO de `api_client.get()` — choke point único,
+  cuenta todo intento (éxito o error, la API cobra igual) y hace corte
+  duro al llegar a 100 (descarta la llamada). `/status` no cuenta.
+- Reparto: fijo 2 (fixtures hoy + mañana), estadísticas 25, odds
+  pre-partido 20, resto para los jobs en vivo por prioridad.
+- Sofascore NO comparte este límite (es scraping con Playwright). Por
+  eso todo lo pesado en vivo (stats, jugadores) va por Sofascore y
+  API-Football queda para marcador/estado y cuotas.
 
 ### Modelos ML (backend/models/)
 - `entrenador.py`, `mlp.py`, `lstm.py`, `gnn.py`, `ensemble.py`
@@ -221,19 +264,21 @@ Sin tablas nuevas esta sesión (las de la sesión anterior — Odds,
 Usuario, Parlay, ParlaySeleccion — siguen igual).
 
 ### Tests
-`tests/` — **55 tests**, pytest. Nuevos: `test_explicacion.py`,
-`test_partido_service.py`, `test_alineaciones.py`, extendido
-`test_parser_imagen.py` (duplicados de equipo).
+`tests/` — **64 tests**, pytest. Nuevos: `test_explicacion.py`,
+`test_partido_service.py`, `test_alineaciones.py` (incluye el caso real
+"Paris Saint Germain" vs "Paris Saint-Germain"), `test_odds_en_vivo.py`,
+`test_presupuesto.py`, extendido `test_parser_imagen.py`.
 
 ## Gaps conocidos, honestos, sin resolver
 1. **Nada en producción** — scheduler completo pero no deployado. Plan
    ya decidido (VPS Ubuntu on-premise del usuario), falta ejecutar.
-2. **Sofascore "próximos partidos" no tiene endpoint encontrado** — ver
-   punto 4 arriba. Bloquea auto-anchoring de `sofascore_id` para
-   fixtures futuros fuera de `TEMPORADAS_HISTORICAS`, y no funciona en
-   absoluto para amistosos.
-3. **Qualifying rounds de copas europeas** — huecos de cobertura, torneo
-   "escondido" bajo otro id en Sofascore, sin mapear.
+2. **Anclaje de `sofascore_id` al 16/33 de los partidos del día** — ya
+   no está bloqueado (ver punto 4 arriba), pero falta mapear los ids de
+   torneo de las fases de clasificación y del resto de los amistosos.
+   Sin `sofascore_id` un partido no tiene alineación confirmada NI
+   stats en vivo.
+3. **Qualifying rounds de copas europeas** — mismo tema que el punto 2:
+   viven bajo otro `unique-tournament` id, sin mapear todavía.
 4. **`parser_imagen.py` heurístico** — cobertura real contra capturas
    variadas de bookmakers no medida en producción.
 5. **Git: todo sin commitear** — ver punto 1 arriba.

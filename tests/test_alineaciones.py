@@ -35,6 +35,26 @@ def _limpiar(db):
     db.commit()
 
 
+def test_nombre_coincide_tolera_guiones_acentos_y_palabras_extra():
+    """Casos REALES que quedaban sin anclar el 2026-08-12 — las dos
+    fuentes escriben el mismo club distinto, y sin sofascore_id el
+    partido se queda sin alineación confirmada NI stats en vivo."""
+    from backend.pipeline.sofascore.job_alineaciones import _nombre_coincide
+
+    # guiones y acentos
+    assert _nombre_coincide("Paris Saint Germain", "Paris Saint-Germain")
+    assert _nombre_coincide("Bolivar", "Bolívar")
+    # palabras/números extra en el medio (lo que rompía el substring)
+    assert _nombre_coincide("Bayer Leverkusen", "Bayer 04 Leverkusen")
+    assert _nombre_coincide("Deportivo La Coruna", "Deportivo de A Coruña")
+    assert _nombre_coincide("Aston Villa", "Aston Villa")
+    # equipos distintos de verdad NO deben matchear
+    assert not _nombre_coincide("Atletico-MG", "Atlético Mineiro")
+    assert not _nombre_coincide("Arsenal", "Chelsea")
+    assert not _nombre_coincide("Real Madrid", "Real Sociedad")
+    assert not _nombre_coincide("", "Arsenal")
+
+
 def test_guardar_jugadores_actualiza_en_vez_de_saltar_si_ya_existe():
     db = SessionLocal()
     try:
