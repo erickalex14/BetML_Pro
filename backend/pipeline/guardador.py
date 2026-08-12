@@ -20,8 +20,10 @@ def guardar_partido(db: Session, fixture: dict, liga_id: int, temporada: int):
     jornada     = fixture["league"]["round"]
     local_id    = fixture["teams"]["home"]["id"]
     local_nombre= fixture["teams"]["home"]["name"]
+    local_logo  = fixture["teams"]["home"].get("logo")
     visit_id    = fixture["teams"]["away"]["id"]
     visit_nombre= fixture["teams"]["away"]["name"]
+    visit_logo  = fixture["teams"]["away"].get("logo")
     goles_l     = fixture["goals"]["home"]
     goles_v     = fixture["goals"]["away"]
     # Goles al descanso — pueden ser None si no terminó
@@ -30,8 +32,8 @@ def guardar_partido(db: Session, fixture: dict, liga_id: int, temporada: int):
     goles_v_ht  = ht["away"]
     fecha = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
     # Guardar o actualizar los equipos
-    _upsert_equipo(db, local_id, local_nombre)
-    _upsert_equipo(db, visit_id, visit_nombre)
+    _upsert_equipo(db, local_id, local_nombre, local_logo)
+    _upsert_equipo(db, visit_id, visit_nombre, visit_logo)
 
     partido = db.get(Partido, fixture_id)
 
@@ -66,15 +68,21 @@ def guardar_partido(db: Session, fixture: dict, liga_id: int, temporada: int):
 
 #Metodo auxiliar
 
-def _upsert_equipo(db: Session, equipo_id: int, nombre: str):
+def _upsert_equipo(db: Session, equipo_id: int, nombre: str, logo_url: str = None):
     """
-    Crea el equipo si no existe, no hace nada si ya está.
-    El _ al inicio indica que es función privada de este módulo.
+    Crea el equipo si no existe. Si ya existe pero le falta el logo
+    (723 equipos ya guardados antes de que esto capturara logo_url —
+    API-Football lo manda gratis en cada fixture, se estaba
+    descartando), lo completa; no pisa nombre ni otros campos ya
+    guardados. El _ al inicio indica que es función privada de este módulo.
     """
     equipo = db.get(Equipo, equipo_id)
     if equipo is None:
-        equipo = Equipo(id=equipo_id, nombre=nombre)
+        equipo = Equipo(id=equipo_id, nombre=nombre, logo_url=logo_url)
         db.add(equipo)
+        db.commit()
+    elif logo_url and not equipo.logo_url:
+        equipo.logo_url = logo_url
         db.commit()
 
 

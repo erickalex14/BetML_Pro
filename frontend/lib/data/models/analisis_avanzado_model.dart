@@ -41,6 +41,54 @@ class KellyPortafolioModel extends KellyPortafolio {
   }
 }
 
+class KellyMercadoModel extends KellyMercado {
+  const KellyMercadoModel({
+    required super.mercado,
+    required super.clave,
+    required super.probabilidad,
+    required super.cuota,
+    required super.ev,
+    required super.edge,
+    required super.esValueBet,
+    required super.stakePct,
+    required super.stakeUnits,
+    required super.cuotaJusta,
+    required super.probImplicita,
+    required super.mensaje,
+  });
+
+  factory KellyMercadoModel.fromJson(Map<String, dynamic> json) {
+    return KellyMercadoModel(
+      mercado: json['mercado'] ?? '',
+      clave: json['clave'] ?? '',
+      probabilidad: (json['probabilidad'] ?? 0.0).toDouble(),
+      cuota: (json['cuota'] ?? 0.0).toDouble(),
+      ev: (json['ev'] ?? 0.0).toDouble(),
+      edge: (json['edge'] ?? 0.0).toDouble(),
+      esValueBet: json['es_value_bet'] ?? false,
+      stakePct: (json['stake_pct'] ?? 0.0).toDouble(),
+      stakeUnits: (json['stake_units'] ?? 0.0).toDouble(),
+      cuotaJusta: (json['cuota_justa'] ?? 0.0).toDouble(),
+      probImplicita: (json['prob_implicita'] ?? 0.0).toDouble(),
+      mensaje: json['mensaje'] ?? '',
+    );
+  }
+}
+
+class KellyAnalisisModel extends KellyAnalisis {
+  const KellyAnalisisModel({required super.todosMercados, required super.nValueBets});
+
+  factory KellyAnalisisModel.fromJson(Map<String, dynamic> json) {
+    final kelly = json['kelly'] as Map<String, dynamic>;
+    return KellyAnalisisModel(
+      todosMercados: (kelly['todos_mercados'] as List? ?? [])
+          .map((m) => KellyMercadoModel.fromJson(m))
+          .toList(),
+      nValueBets: kelly['n_value_bets'] ?? 0,
+    );
+  }
+}
+
 class JugadorMercadoModel extends JugadorMercado {
   const JugadorMercadoModel({
     required super.nombre,
@@ -48,26 +96,48 @@ class JugadorMercadoModel extends JugadorMercado {
     required super.nPartidosHistorial,
     required super.tirosPromedio,
     required super.tirosArcoPromedio,
+    required super.asistenciasPromedio,
+    required super.pasesPromedio,
+    required super.entradasPromedio,
     required super.probAnota,
     required super.probAmarilla,
     required super.probRoja,
     required super.tirosOverUnder,
+    required super.tirosArcoOverUnder,
+    required super.asistenciasOverUnder,
+    required super.pasesOverUnder,
+    required super.entradasOverUnder,
+    required super.golesOverUnder,
   });
 
   factory JugadorMercadoModel.fromJson(Map<String, dynamic> json) {
-    final tiros = json['tiros'] as Map<String, dynamic>? ?? {};
-    final tirosArco = json['tiros_arco'] as Map<String, dynamic>? ?? {};
-    final overUnder = tiros['over_under'] as Map<String, dynamic>? ?? {};
+    Map<String, double> overUnderDe(String bloque) {
+      final b = json[bloque] as Map<String, dynamic>? ?? {};
+      final ou = b['over_under'] as Map<String, dynamic>? ?? {};
+      return ou.map((k, v) => MapEntry(k, (v as num).toDouble()));
+    }
+
+    double promedioDe(String bloque) =>
+        ((json[bloque] as Map<String, dynamic>? ?? {})['promedio'] ?? 0.0).toDouble();
+
     return JugadorMercadoModel(
       nombre: json['nombre'] ?? 'Jugador',
       posicion: json['posicion'] as String?,
       nPartidosHistorial: json['n_partidos_historial'] ?? 0,
-      tirosPromedio: (tiros['promedio'] ?? 0.0).toDouble(),
-      tirosArcoPromedio: (tirosArco['promedio'] ?? 0.0).toDouble(),
+      tirosPromedio: promedioDe('tiros'),
+      tirosArcoPromedio: promedioDe('tiros_arco'),
+      asistenciasPromedio: promedioDe('asistencias'),
+      pasesPromedio: promedioDe('pases'),
+      entradasPromedio: promedioDe('entradas'),
       probAnota: (json['prob_anota'] ?? 0.0).toDouble(),
       probAmarilla: (json['prob_amarilla'] ?? 0.0).toDouble(),
       probRoja: (json['prob_roja'] ?? 0.0).toDouble(),
-      tirosOverUnder: overUnder.map((k, v) => MapEntry(k, (v as num).toDouble())),
+      tirosOverUnder: overUnderDe('tiros'),
+      tirosArcoOverUnder: overUnderDe('tiros_arco'),
+      asistenciasOverUnder: overUnderDe('asistencias'),
+      pasesOverUnder: overUnderDe('pases'),
+      entradasOverUnder: overUnderDe('entradas'),
+      golesOverUnder: overUnderDe('goles'),
     );
   }
 }

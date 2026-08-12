@@ -18,6 +18,10 @@ dependencies:
 
   # Storage seguro del JWT
   flutter_secure_storage: ^9.2.2
+
+  # Elegir imagen (galería/cámara en mobile, file picker en web) para
+  # analizar-captura — no hay API nativa cross-platform sin paquete
+  image_picker: ^1.1.2
   
   # Navegación
   go_router: ^14.0.0

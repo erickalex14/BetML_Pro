@@ -32,6 +32,21 @@ class PrediccionRepository:
             .all()
         )
 
+    # Historial completo, más reciente primero — para la pantalla "Mis
+    # predicciones". estado filtra por: "pendiente" (acerto IS NULL),
+    # "acertada"/"fallada" (acerto True/False). Sin usuario_id en la
+    # tabla todavía (ver HANDOFF) — esto es TODO lo guardado, no
+    # filtrado por cuenta; en un solo-usuario real hoy no importa.
+    def listar(self, estado: str | None = None, limite: int = 100) -> List[Prediccion]:
+        q = self.db.query(Prediccion)
+        if estado == "pendiente":
+            q = q.filter(Prediccion.acerto.is_(None))
+        elif estado == "acertada":
+            q = q.filter(Prediccion.acerto.is_(True))
+        elif estado == "fallada":
+            q = q.filter(Prediccion.acerto.is_(False))
+        return q.order_by(Prediccion.creado_en.desc()).limit(limite).all()
+
     #Obtener las estadisticas — global y por mercado. Global mezcla
     # distintas fuentes de predicción (XGBoost solo vs ensemble de 4
     # modelos) si ambas están corriendo — por mercado es lo que importa

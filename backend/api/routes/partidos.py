@@ -17,12 +17,10 @@ def partidos_hoy(db: Session = Depends(get_db)):
 
 @router.get("/{partido_id}")
 def detalle_partido(partido_id: int, db: Session = Depends(get_db)):
-    from backend.repositories.partido_repo import PartidoRepository
-    repo = PartidoRepository(db)
-    partido = repo.get_por_id(partido_id)
-    if not partido:
+    data = PartidoService(db).get_detalle(partido_id)
+    if not data:
         raise HTTPException(status_code=404, detail="Partido no encontrado")
-    return partido
+    return data
 
 
 @router.get("/{partido_id}/prediccion")

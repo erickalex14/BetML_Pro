@@ -1,6 +1,7 @@
 import '../../core/http/auth_client.dart';
 import '../../domain/entities/partido.dart';
 import '../../domain/entities/prediccion.dart';
+import '../../domain/entities/recomendadas.dart';
 import '../../domain/repositories/partido_repository.dart';
 import '../../core/errors/failures.dart';
 import '../datasources/partido_remote_ds.dart';
@@ -81,6 +82,32 @@ class PartidoRepositoryImpl implements PartidoRepository {
       return (stats: null, error: f);
     } catch (e) {
       return (stats: null, error: NetworkFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<({List<PrediccionGuardada> predicciones, Failure? error})>
+    getPrediccionesMias({String? estado}) async {
+    try {
+      final lista = await _dataSource.getPrediccionesMias(estado: estado);
+      return (predicciones: lista as List<PrediccionGuardada>, error: null);
+    } on Failure catch (f) {
+      return (predicciones: <PrediccionGuardada>[], error: f);
+    } catch (e) {
+      return (predicciones: <PrediccionGuardada>[], error: NetworkFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<({Recomendadas? recomendadas, Failure? error})>
+    getRecomendadas() async {
+    try {
+      final r = await _dataSource.getRecomendadas();
+      return (recomendadas: r as Recomendadas, error: null);
+    } on Failure catch (f) {
+      return (recomendadas: null, error: f);
+    } catch (e) {
+      return (recomendadas: null, error: NetworkFailure(e.toString()));
     }
   }
 }

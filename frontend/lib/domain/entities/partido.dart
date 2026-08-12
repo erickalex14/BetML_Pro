@@ -7,8 +7,10 @@ class Partido {
   final int       ligaId;
   final String    local;
   final int       localId;
+  final String?   localLogo;
   final String    visitante;
   final int       visitanteId;
+  final String?   visitanteLogo;
   final DateTime  fecha;
   final String    estado;
   final int?      golesLocal;
@@ -23,8 +25,10 @@ class Partido {
     required this.ligaId,
     required this.local,
     required this.localId,
+    this.localLogo,
     required this.visitante,
     required this.visitanteId,
+    this.visitanteLogo,
     required this.fecha,
     required this.estado,
     this.golesLocal,

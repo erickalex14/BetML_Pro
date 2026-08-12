@@ -1,5 +1,6 @@
 import '../entities/partido.dart';
 import '../entities/prediccion.dart';
+import '../entities/recomendadas.dart';
 import '../../core/errors/failures.dart';
 
 abstract class PartidoRepository {
@@ -14,5 +15,11 @@ abstract class PartidoRepository {
     getStatsModelo();
 
   Future<({List<Prediccion> predicciones, Failure? error})>
-    getPrediccionesHoy();    
+    getPrediccionesHoy();
+
+  Future<({List<PrediccionGuardada> predicciones, Failure? error})>
+    getPrediccionesMias({String? estado});
+
+  Future<({Recomendadas? recomendadas, Failure? error})>
+    getRecomendadas();
 }

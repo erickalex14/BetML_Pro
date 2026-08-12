@@ -29,6 +29,9 @@ def simular_jugador(forma: dict, n_simulaciones: int = 10000,
     tiros_arco = np.minimum(tiros_arco_raw, tiros)
 
     goles = np.random.poisson(lam=max(forma["goles_prom"], 0.01), size=n_simulaciones)
+    asistencias = np.random.poisson(lam=max(forma["asistencias_prom"], 0.01), size=n_simulaciones)
+    pases = np.random.poisson(lam=max(forma["pases_prom"], 0.01), size=n_simulaciones)
+    duelos = np.random.poisson(lam=max(forma["duelos_prom"], 0.01), size=n_simulaciones)
 
     def over_under(arr, lineas):
         return {
@@ -46,6 +49,22 @@ def simular_jugador(forma: dict, n_simulaciones: int = 10000,
             "promedio": round(float(np.mean(tiros_arco)), 2),
             "over_under": over_under(tiros_arco, [0.5, 1.5]),
         },
+        "asistencias": {
+            "promedio": round(float(np.mean(asistencias)), 2),
+            "over_under": over_under(asistencias, [0.5]),
+        },
+        "pases": {
+            "promedio": round(float(np.mean(pases)), 2),
+            "over_under": over_under(pases, [20.5, 30.5, 40.5]),
+        },
+        "entradas": {
+            "promedio": round(float(np.mean(duelos)), 2),
+            "over_under": over_under(duelos, [1.5, 2.5, 3.5]),
+        },
+        "goles": {
+            "promedio": round(float(np.mean(goles)), 2),
+            "over_under": over_under(goles, [0.5, 1.5]),  # anota / anota 2+
+        },
         "prob_anota": round(float(np.mean(goles >= 1)), 4),
         "prob_amarilla": round(forma["prob_amarilla"], 4),
         "prob_roja": round(forma["prob_roja"], 4),
@@ -53,11 +72,17 @@ def simular_jugador(forma: dict, n_simulaciones: int = 10000,
 
 
 def simular_jugadores_partido(db, partido, n_simulaciones: int = 10000) -> dict:
-    """Simula mercados individuales para el XI probable de ambos equipos.
+    """Simula mercados individuales para el XI de ambos equipos. Usa la
+    alineación CONFIRMADA por Sofascore si job_alineaciones.py ya la trajo
+    (real, no puede listar a alguien que ya se fue del club); si todavía
+    no salió (falta más de ~90 min para el partido), cae al heurístico de
+    "quién jugó de titular más seguido últimamente" — ver
+    obtener_titulares_probables().
     Devuelve {"local": [...], "visitante": [...]}, cada elemento con
     nombre/posición + su simulación. Jugadores sin historial suficiente
     (fichajes recientes, debuts) se omiten — no hay con qué estimarlos."""
-    from backend.features.jugadores import obtener_titulares_probables, calcular_forma_jugador
+    from backend.features.jugadores import (
+        obtener_lineup_confirmada, obtener_titulares_probables, calcular_forma_jugador)
 
     resultado = {"local": [], "visitante": []}
 
@@ -65,7 +90,8 @@ def simular_jugadores_partido(db, partido, n_simulaciones: int = 10000) -> dict:
         ("local", partido.equipo_local_id, True),
         ("visitante", partido.equipo_visit_id, False),
     ):
-        probables = obtener_titulares_probables(db, equipo_id, partido.fecha, es_local)
+        probables = (obtener_lineup_confirmada(db, partido.id, es_local)
+                     or obtener_titulares_probables(db, equipo_id, partido.fecha, es_local))
         for jugador in probables:
             forma = calcular_forma_jugador(db, jugador["sofascore_jugador_id"], partido.fecha)
             if forma is None:

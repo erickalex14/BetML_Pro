@@ -74,6 +74,39 @@ def predicciones_hoy(db: Session = Depends(get_db)):
     return service.predecir_hoy()
 
 
+@router.get("/mias")
+def predicciones_mias(estado: Optional[str] = None, db: Session = Depends(get_db)):
+    """
+    Historial de predicciones guardadas (ver POST /{id}/guardar-mercados)
+    — para la pantalla "Mis predicciones". estado: pendiente|acertada|fallada,
+    sin pasar devuelve todo.
+    """
+    from backend.repositories.prediccion_repo import PrediccionRepository
+    from backend.repositories.partido_repo import PartidoRepository
+
+    repo_pred = PrediccionRepository(db)
+    repo_partido = PartidoRepository(db)
+    filas = repo_pred.listar(estado=estado)
+
+    resultado = []
+    for f in filas:
+        partido = repo_partido.get_por_id(f.partido_id)
+        resultado.append({
+            "id": f.id,
+            "partido_id": f.partido_id,
+            "local": partido.equipo_local.nombre if partido else None,
+            "visitante": partido.equipo_visitante.nombre if partido else None,
+            "liga": partido.liga.nombre if partido else None,
+            "mercado": f.mercado,
+            "prediccion": f.prediccion,
+            "probabilidad": f.probabilidad,
+            "resultado_real": f.resultado_real,
+            "acerto": f.acerto,
+            "creado_en": f.creado_en.isoformat() if f.creado_en else None,
+        })
+    return {"predicciones": resultado, "total": len(resultado)}
+
+
 @router.get("/{partido_id}/ensemble")
 def prediccion_ensemble(partido_id: int, db: Session = Depends(get_db)):
     """
@@ -204,6 +237,63 @@ def kelly_partido(
             "resumen":     f"{kelly['n_value_bets']} apuesta(s) con valor positivo",
         }
     }
+
+
+class GuardarMercadosRequest(BaseModel):
+    claves: list[str]  # mismas claves de "Todos los mercados" (sin el prefijo odds_)
+
+
+@router.post("/{partido_id}/guardar-mercados")
+def guardar_mercados(partido_id: int, body: GuardarMercadosRequest, db: Session = Depends(get_db)):
+    """
+    Guarda como Prediccion los mercados que el usuario ELIGIÓ (no
+    automático como el guardar=True de /kelly, que solo guarda value
+    bets) — para que job_cerrar_predicciones.py los cierre contra el
+    resultado real cuando el partido termine, y /stats/modelo pueda
+    mostrar accuracy real de lo que el usuario efectivamente eligió
+    trackear, no solo de las value bets automáticas.
+
+    Body: {"claves": ["local", "goles_over_2_5", "btts_si", ...]} — las
+    mismas claves que devuelve /kelly en todos_mercados[].clave.
+    """
+    from backend.repositories.partido_repo import PartidoRepository
+    from backend.repositories.prediccion_repo import PrediccionRepository
+    from backend.models.odds_service import obtener_mejores_odds
+
+    repo    = PartidoRepository(db)
+    partido = repo.get_por_id(partido_id)
+    if not partido:
+        raise HTTPException(status_code=404, detail="Partido no encontrado")
+
+    service = PrediccionService(db)
+    pred    = service.predecir(partido)
+    if not pred:
+        raise HTTPException(status_code=422, detail="Sin historial suficiente para predecir")
+
+    odds = obtener_mejores_odds(db, partido_id)
+    montecarlo, _ = _correr_montecarlo_partido(db, partido, pred)
+    todos = analizar_mercados_kelly(prediccion=pred, odds=odds, montecarlo=montecarlo)["todos_mercados"]
+
+    por_clave = {m["clave"]: m for m in todos}
+    repo_pred = PrediccionRepository(db)
+    guardados = []
+    no_encontrados = []
+    for clave in body.claves:
+        m = por_clave.get(clave)
+        if m is None:
+            no_encontrados.append(clave)
+            continue
+        repo_pred.crear(
+            partido_id=partido_id,
+            mercado=clave,
+            prediccion=m["mercado"],
+            probabilidad=m["probabilidad"],
+            confianza=m["probabilidad"],
+        )
+        guardados.append(clave)
+
+    return {"partido_id": partido_id, "guardados": guardados, "no_encontrados": no_encontrados}
+
 
 @router.get("/{partido_id}/montecarlo")
 def montecarlo_partido(
@@ -494,12 +584,23 @@ async def analizar_captura(imagen: UploadFile = File(...), db: Session = Depends
     montecarlo = None
     if pred:
         montecarlo, _ = _correr_montecarlo_partido(db, partido, pred)
+    else:
+        # sin esto, cada mercado detectado muestra "no se pudo calcular"
+        # por separado sin decir por qué — la causa real es una sola
+        # (nada de historial para ESTE partido, no un problema por mercado)
+        avisos.append(
+            f"{partido.equipo_local.nombre} vs {partido.equipo_visitante.nombre} "
+            "no tiene historial suficiente para predicción — ningún mercado de "
+            "este partido se puede calcular todavía"
+        )
 
     disponibles = construir_lista_mercados(pred, montecarlo) if pred else []
     odds_guardadas = obtener_mejores_odds(db, partido.id)
 
     resultados = []
     prob_combinada = 1.0
+    algun_mercado_calculado = False  # distingue "0 patas calculadas" de "1.0 real" — antes
+                                      # devolvía 100% cuando NINGÚN mercado se pudo calcular
     for m in mercados_detectados:
         odds_key = f"odds_{m['mercado']}"
         encontrado = next((e for e in disponibles if e[2] == odds_key), None)
@@ -511,6 +612,7 @@ async def analizar_captura(imagen: UploadFile = File(...), db: Session = Depends
         _, prob, _, _ = encontrado
         cuota = odds_guardadas.get(odds_key)
         prob_combinada *= prob
+        algun_mercado_calculado = True
 
         fila = {**m, "reconocido": True, "probabilidad": round(prob, 4)}
         if cuota is not None:
@@ -527,7 +629,7 @@ async def analizar_captura(imagen: UploadFile = File(...), db: Session = Depends
         "avisos": avisos,
         "sin_reconocer": analisis["sin_reconocer"],
         "selecciones": resultados,
-        "prob_combinada_estimada": round(prob_combinada, 4) if resultados else None,
+        "prob_combinada_estimada": round(prob_combinada, 4) if algun_mercado_calculado else None,
     }
 
 
@@ -558,4 +660,161 @@ def mercados_jugadores(
         "partido_id": partido_id,
         "n_simulaciones": n_simulaciones,
         "jugadores": resultado,
+    }
+
+
+@router.get("/recomendadas")
+def predicciones_recomendadas(
+    bankroll: float = 1000.0,
+    fraccion: float = 0.25,
+    n_simulaciones: int = 6000,
+    top_individuales: int = 15,
+    db: Session = Depends(get_db),
+):
+    """
+    Escanea TODOS los partidos de HOY con predicción + cuotas guardadas
+    y arma tres cosas:
+      1. apuestas_individuales — las mejores value bets por EV, de
+         cualquier mercado y cualquier partido (mismo cálculo que /kelly,
+         corrido para todos los partidos en vez de uno).
+      2. combinadas_mismo_partido — Kelly portafolio (mercados
+         correlacionados vía Monte Carlo, ver /kelly/portafolio) de cada
+         partido, solo las que dieron stake > 0.
+      3. parlays_sugeridos — combinadas entre partidos DISTINTOS, armadas
+         con la mejor pata (mayor EV) de cada partido — mismo principio
+         de independencia que POST /combinada, acá elegido automático
+         en vez de que el usuario seleccione a mano.
+
+    Vivo, no cacheado — recorre todos los partidos de hoy en cada
+    request (unos segundos con ~20-30 partidos). Si se vuelve lento,
+    cachear por un rato es la mejora obvia; no se hizo de entrada
+    porque no hay todavía evidencia de que haga falta.
+    """
+    from datetime import date
+    from backend.repositories.partido_repo import PartidoRepository
+    from backend.models.odds_service import obtener_mejores_odds
+    from backend.models.kelly_portfolio import kelly_portfolio
+    from backend.models.parlay import calcular_parlay_kelly
+    from backend.models.montecarlo import simular_partido
+    from backend.pipeline.config import LIGAS_SIN_HISTORIAL_ID
+
+    repo = PartidoRepository(db)
+    # amistosos afuera: el modelo predice con la fuerza histórica REAL del
+    # equipo, no sabe que en un amistoso suele jugar con suplentes/rotado
+    # — un "edge" gigante ahí es más probable que sea el modelo mal
+    # calibrado para el contexto que una value bet real (visto en vivo:
+    # 60pp de edge en un amistoso, número que no pasa el olfato)
+    partidos = [p for p in repo.get_por_fecha(date.today()) if p.liga_id not in LIGAS_SIN_HISTORIAL_ID]
+    service = PrediccionService(db)
+    calibracion = cargar_calibracion()
+
+    individuales = []
+    combinadas_partido = []
+    mejor_por_partido = []  # una pata por partido, para armar los parlays
+
+    for partido in partidos:
+        pred = service.predecir(partido)
+        if not pred:
+            continue
+        odds = obtener_mejores_odds(db, partido.id)
+        if not odds:
+            continue
+
+        montecarlo, _ = _correr_montecarlo_partido(db, partido, pred, n_simulaciones)
+        kelly = analizar_mercados_kelly(
+            prediccion=pred, odds=odds, bankroll=bankroll, fraccion=fraccion,
+            montecarlo=montecarlo, calibracion=calibracion,
+        )
+
+        info_partido = {
+            "partido_id": partido.id,
+            "local": partido.equipo_local.nombre,
+            "visitante": partido.equipo_visitante.nombre,
+            "liga": partido.liga.nombre,
+        }
+
+        for vb in kelly["value_bets"]:
+            individuales.append({**info_partido, **vb})
+
+        if kelly["value_bets"]:
+            mejor = max(kelly["value_bets"], key=lambda m: m["ev"])
+            mejor_por_partido.append({
+                **info_partido,
+                "mercado_legible": mejor["mercado"],
+                "clave": mejor["clave"],
+                "prob": mejor["probabilidad"],
+                "cuota": mejor["cuota"],
+            })
+
+        # simulación aparte con escenarios crudos — igual que hace
+        # /kelly/portafolio (montecarlo de arriba no los trae, se usa
+        # para el resto de los mercados vía analizar_mercados_kelly)
+        stats = partido.stats_sofascore
+        if isinstance(stats, list):
+            stats = stats[0] if stats else None
+        if stats and stats.xg_local and stats.xg_visitante:
+            xg_local, xg_visit = stats.xg_local, stats.xg_visitante
+        else:
+            xg_local = max(0.3, pred.get("prob_local", 0.33) * 2.5)
+            xg_visit = max(0.3, pred.get("prob_visitante", 0.33) * 2.5)
+        mc_escenarios = simular_partido(xg_local, xg_visit, n_simulaciones=n_simulaciones, devolver_escenarios=True)
+        gl = mc_escenarios["_escenarios"]["goles_local"]
+        gv = mc_escenarios["_escenarios"]["goles_visit"]
+        goles_total = gl + gv
+        candidatos_portafolio = [
+            ("1X2 Local", gl > gv, "odds_local"),
+            ("1X2 Empate", gl == gv, "odds_empate"),
+            ("1X2 Visitante", gl < gv, "odds_visitante"),
+            ("Goles Over 2.5", goles_total > 2.5, "odds_goles_over_2_5"),
+            ("Goles Under 2.5", goles_total <= 2.5, "odds_goles_under_2_5"),
+            ("BTTS Sí", (gl > 0) & (gv > 0), "odds_btts_si"),
+            ("BTTS No", ~((gl > 0) & (gv > 0)), "odds_btts_no"),
+        ]
+        mercados_portafolio = [
+            {"nombre": nombre, "gana_escenario": gana, "cuota": odds[odds_key]}
+            for nombre, gana, odds_key in candidatos_portafolio
+            if odds_key in odds and odds[odds_key] > 1.0
+        ]
+        if mercados_portafolio:
+            portafolio = kelly_portfolio(mercados_portafolio, fraccion=fraccion)
+            if portafolio["stake_total_pct"] > 0:
+                combinadas_partido.append({**info_partido, "portafolio": portafolio})
+
+    individuales.sort(key=lambda m: m["ev"], reverse=True)
+    individuales = individuales[:top_individuales]
+
+    combinadas_partido.sort(key=lambda c: c["portafolio"]["ev_portafolio"], reverse=True)
+    combinadas_partido = combinadas_partido[:5]
+
+    parlays = []
+    if len(mejor_por_partido) >= 2:
+        por_prob = sorted(mejor_por_partido, key=lambda m: m["prob"], reverse=True)
+        for n in (2, 3, 4):
+            if len(por_prob) < n:
+                continue
+            elegidos = por_prob[:n]
+            resultado = calcular_parlay_kelly(
+                [{"partido_id": s["partido_id"], "mercado": s["clave"],
+                  "prob": s["prob"], "cuota": s["cuota"]} for s in elegidos],
+                bankroll=bankroll, fraccion=fraccion,
+            )
+            # resultado ya trae su propia "selecciones" (solo prob, sin
+            # nombres) — se descarta a favor de la versión con nombres
+            # de equipo de acá, si no el **resultado de abajo la pisa
+            resultado.pop("selecciones", None)
+            parlays.append({
+                "n_patas": n,
+                "selecciones": [
+                    {"partido_id": s["partido_id"], "local": s["local"], "visitante": s["visitante"],
+                     "mercado": s["mercado_legible"]}
+                    for s in elegidos
+                ],
+                **resultado,
+            })
+
+    return {
+        "fecha": str(date.today()),
+        "apuestas_individuales": individuales,
+        "combinadas_mismo_partido": combinadas_partido,
+        "parlays_sugeridos": parlays,
     }

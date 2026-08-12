@@ -127,8 +127,16 @@ def analizar_captura_parley(db, ruta_imagen: str) -> dict:
         candidatos = buscar_candidatos(db, linea, None, None)
         if candidatos and candidatos[0][1] is not None and candidatos[0][1] > 0.5:
             equipo, score = candidatos[0]
+            # sin liga_id (la imagen no trae ese contexto) puede haber
+            # más de un Equipo con el mismo nombre (bug real: dos filas
+            # "Fluminense", id 124 y 20977, sin deduplicar en origen) —
+            # se guardan TODOS los candidatos por encima del umbral, no
+            # solo el top-1, para que resolver_partido_y_mercados pueda
+            # desambiguar cruzando contra qué partido existe de verdad
+            # (mismo principio que job_historico_sofascore._buscar_partido)
             equipos_candidatos.append({
                 "texto_original": linea, "equipo_id": equipo.id,
+                "equipo_ids": [e.id for e, s in candidatos if s is not None and s > 0.5],
                 "nombre": equipo.nombre, "score": round(float(score), 3),
             })
             pendiente_resultado = linea
@@ -182,12 +190,13 @@ def resolver_partido_y_mercados(db, analisis: dict):
         avisos.append("No se reconocieron 2 equipos distintos en la imagen")
         return None, [], avisos
 
-    id_a, id_b = equipos[0]["equipo_id"], equipos[1]["equipo_id"]
+    ids_a = equipos[0].get("equipo_ids") or [equipos[0]["equipo_id"]]
+    ids_b = equipos[1].get("equipo_ids") or [equipos[1]["equipo_id"]]
     candidatos = (
         db.query(Partido)
         .filter(
-            ((Partido.equipo_local_id == id_a) & (Partido.equipo_visit_id == id_b)) |
-            ((Partido.equipo_local_id == id_b) & (Partido.equipo_visit_id == id_a))
+            ((Partido.equipo_local_id.in_(ids_a)) & (Partido.equipo_visit_id.in_(ids_b))) |
+            ((Partido.equipo_local_id.in_(ids_b)) & (Partido.equipo_visit_id.in_(ids_a)))
         )
         .all()
     )
@@ -216,10 +225,13 @@ def resolver_partido_y_mercados(db, analisis: dict):
             if not candidatos:
                 avisos.append(f"No se pudo ligar la selección 1X2 a un equipo detectado: {sel['equipo_texto']!r}")
                 continue
-            equipo_id = candidatos[0]["equipo_id"]
-            if equipo_id == partido.equipo_local_id:
+            # contra la lista de candidatos (no un id único ya fijado) —
+            # mismo motivo que arriba: puede haber más de un Equipo con
+            # ese nombre, el que importa es el que realmente juega HOY
+            ids_candidatos = candidatos[0].get("equipo_ids") or [candidatos[0]["equipo_id"]]
+            if partido.equipo_local_id in ids_candidatos:
                 clave = "local"
-            elif equipo_id == partido.equipo_visit_id:
+            elif partido.equipo_visit_id in ids_candidatos:
                 clave = "visitante"
             else:
                 continue

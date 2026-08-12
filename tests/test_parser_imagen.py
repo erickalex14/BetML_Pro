@@ -73,3 +73,45 @@ def test_no_usa_partido_viejo_como_si_fuera_el_de_la_imagen():
     assert partido is None
     assert len(avisos) == 1
     assert "probablemente NO es el de la imagen" in avisos[0]
+
+
+def test_desambigua_equipo_duplicado_por_nombre():
+    """Bug real de sesión: hay 2 filas 'Fluminense' en Equipo (ids
+    distintos, nunca deduplicadas) — buscar_candidatos sin liga_id (la
+    imagen no trae ese contexto) puede devolver el candidato equivocado
+    como top-1. Antes del fix, resolver_partido_y_mercados solo miraba
+    ese top-1 y fallaba con "no hay partido en BD" aunque el partido
+    real existiera con el OTRO id del mismo nombre. El fix: se guardan
+    TODOS los candidatos por encima del umbral y se cruza con Partido
+    real vía .in_(), no un id ya fijado de antemano."""
+    db = SessionLocal()
+    ahora = datetime.now()
+    # tiene que caer DENTRO de VENTANA_DIAS_PARTIDO_ACTUAL, si no
+    # resolver_partido_y_mercados lo rechaza por "viejo" (otro chequeo,
+    # cubierto por el test de arriba) y este test daría falso negativo
+    candidatos_fecha = (
+        db.query(Partido)
+        .filter(Partido.fecha >= ahora - timedelta(days=3), Partido.fecha <= ahora + timedelta(days=3))
+        .all()
+    )
+    partido_real = min(candidatos_fecha, key=lambda p: abs((p.fecha - ahora).total_seconds()))
+    id_correcto = partido_real.equipo_local_id
+    id_falso = id_correcto + 10_000_000  # id que no corresponde a ningún Partido real
+
+    analisis = {
+        "equipos_detectados": [
+            # top-1 (equipo_id) es el FALSO — el correcto solo aparece en equipo_ids
+            {"texto_original": "a", "equipo_id": id_falso, "equipo_ids": [id_falso, id_correcto],
+             "nombre": "Equipo Ambiguo", "score": 0.9},
+            {"texto_original": "b", "equipo_id": partido_real.equipo_visit_id,
+             "equipo_ids": [partido_real.equipo_visit_id], "nombre": "Rival", "score": 0.9},
+        ],
+        "selecciones": [{"tipo": "1x2", "equipo_texto": "a"}],
+    }
+
+    partido, mercados, avisos = resolver_partido_y_mercados(db, analisis)
+    db.close()
+
+    assert partido is not None
+    assert partido.id == partido_real.id
+    assert mercados[0]["mercado"] == "local"

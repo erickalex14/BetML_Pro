@@ -44,15 +44,20 @@ class PartidosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> cargarPartidosHoy() async {
-    _cargando = true;
-    _error    = null;
-    notifyListeners();
+  // mostrarCargando=false — usado por el auto-refresh en background (cada
+  // 60s en HomeScreen): la lista se actualiza sola cuando cambia el
+  // marcador, sin tapar la pantalla con el skeleton cada vez.
+  Future<void> cargarPartidosHoy({bool mostrarCargando = true}) async {
+    if (mostrarCargando) {
+      _cargando = true;
+      _error    = null;
+      notifyListeners();
+    }
 
     final result = await _getPartidosHoy();
 
     if (result.error != null) {
-      _error = result.error!.mensaje;
+      if (mostrarCargando) _error = result.error!.mensaje; // error silencioso en refresh de fondo, no tapa datos ya mostrados
     } else {
       _partidos = result.partidos;
       _fecha    = result.fecha;

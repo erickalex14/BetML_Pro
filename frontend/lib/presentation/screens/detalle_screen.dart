@@ -8,6 +8,7 @@ import '../../domain/entities/partido.dart';
 import '../../domain/entities/prediccion.dart';
 import '../widgets/clay.dart';
 import '../widgets/confidence.dart';
+import '../widgets/team_logo.dart';
 
 class DetalleScreen extends StatefulWidget {
   final int partidoId;
@@ -131,14 +132,26 @@ class _Header extends StatelessWidget {
         Text(partido.liga.toUpperCase(), style: AppTheme.eyebrow(c, color: c.ledger)),
         const SizedBox(height: 14),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Expanded(child: Text(partido.local, textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text))),
+          Expanded(
+            child: Column(children: [
+              TeamLogo(url: partido.localLogo, nombre: partido.local, size: 40),
+              const SizedBox(height: 8),
+              Text(partido.local, textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text)),
+            ]),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(partido.marcador, style: AppTheme.score(c, size: 22)),
           ),
-          Expanded(child: Text(partido.visitante,
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text))),
+          Expanded(
+            child: Column(children: [
+              TeamLogo(url: partido.visitanteLogo, nombre: partido.visitante, size: 40),
+              const SizedBox(height: 8),
+              Text(partido.visitante, textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text)),
+            ]),
+          ),
         ]),
         const SizedBox(height: 10),
         Text(partido.jornada ?? partido.hora, style: TextStyle(fontSize: 11, color: c.textMuted)),

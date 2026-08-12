@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import 'clay.dart';
 
-enum AppTab { partidos, stats, perfil }
+enum AppTab { partidos, recomendadas, predicciones, stats, perfil }
 
 // Nav clay — el segundo (y último) lugar donde se usa el tratamiento
 // claymorphism, para que siga leyéndose como acento y no como wallpaper.
@@ -22,6 +22,8 @@ class AppBottomNav extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _item(context, AppTab.partidos, Icons.receipt_long_outlined, 'Partidos', '/'),
+            _item(context, AppTab.recomendadas, Icons.auto_graph_rounded, 'Top', '/recomendadas'),
+            _item(context, AppTab.predicciones, Icons.bookmark_outline_rounded, 'Mías', '/predicciones'),
             _item(context, AppTab.stats, Icons.show_chart_rounded, 'Stats', '/stats'),
             _item(context, AppTab.perfil, Icons.person_outline_rounded, 'Perfil', '/perfil'),
           ],
@@ -37,7 +39,7 @@ class AppBottomNav extends StatelessWidget {
       onTap: active ? null : () => context.go(ruta),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: active ? c.pitch : Colors.transparent,
           borderRadius: BorderRadius.circular(14),

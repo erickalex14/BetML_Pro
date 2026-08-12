@@ -26,6 +26,19 @@ class AnalisisRepositoryImpl implements AnalisisRepository {
   }
 
   @override
+  Future<({KellyAnalisis? kelly, Failure? error})>
+      getKelly(int partidoId) async {
+    try {
+      final r = await _dataSource.getKelly(partidoId);
+      return (kelly: r as KellyAnalisis, error: null);
+    } on Failure catch (f) {
+      return (kelly: null, error: f);
+    } catch (e) {
+      return (kelly: null, error: NetworkFailure(e.toString()));
+    }
+  }
+
+  @override
   Future<({JugadoresPartido? jugadores, Failure? error})>
       getJugadores(int partidoId) async {
     try {
@@ -35,6 +48,19 @@ class AnalisisRepositoryImpl implements AnalisisRepository {
       return (jugadores: null, error: f);
     } catch (e) {
       return (jugadores: null, error: NetworkFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<({List<String>? guardados, Failure? error})>
+      guardarMercados(int partidoId, List<String> claves) async {
+    try {
+      final r = await _dataSource.guardarMercados(partidoId, claves);
+      return (guardados: r, error: null);
+    } on Failure catch (f) {
+      return (guardados: null, error: f);
+    } catch (e) {
+      return (guardados: null, error: NetworkFailure(e.toString()));
     }
   }
 }

@@ -16,19 +16,19 @@ log = logging.getLogger(__name__)
 
 def job_reentrenar_modelos():
     """
-    Domingos 03:00 — reentrena los 4 modelos (XGBoost/MLP/LSTM/GNN) con
-    todo el dataset actualizado + reajusta Dixon-Coles. Semanal, no
-    diario — un reentreno completo tarda ~15-20 min y no hace falta más
-    seguido que eso para que el sistema vaya "aprendiendo" de los
-    partidos que se van cerrando cada día.
+    03:00 — reentrena los 4 modelos (XGBoost/MLP/LSTM/GNN) con todo el
+    dataset actualizado + reajusta Dixon-Coles. Diario a pedido — un
+    reentreno completo tarda ~15-20 min; con muchos partidos cerrando
+    por día (más ligas/amistosos trackeados ahora) captura resultados
+    frescos más rápido que semanal.
     """
-    log.info("Iniciando reentrenamiento semanal de modelos (domingo 03:00)")
+    log.info("Iniciando reentrenamiento diario de modelos (03:00)")
     try:
         from backend.pipeline.job_reentrenar_modelos import correr_reentrenamiento_completo
         correr_reentrenamiento_completo()
-        log.info("Reentrenamiento semanal completado")
+        log.info("Reentrenamiento diario completado")
     except Exception as e:
-        log.error(f"Error en reentrenamiento semanal: {e}")
+        log.error(f"Error en reentrenamiento diario: {e}")
 
 
 def job_pipeline_dia():
@@ -107,6 +107,39 @@ def job_odds():
         log.error(f"Error en job cuotas: {e}")
 
 
+def job_partidos_en_vivo():
+    """
+    Cada 15 min, todo el día — refresca marcador/estado de los partidos
+    de hoy mientras se juegan y cierra sus predicciones apenas terminan.
+    Sin gastar requests si no hay nada en vivo ni por arrancar (ver
+    _hay_algo_para_actualizar en job_partidos_en_vivo.py) — importa
+    porque el plan free de API-Football es 100 requests/día y los otros
+    jobs ya usan ~60.
+    """
+    log.info("Chequeando partidos en vivo")
+    try:
+        from backend.pipeline.job_partidos_en_vivo import correr_job_partidos_en_vivo
+        correr_job_partidos_en_vivo()
+    except Exception as e:
+        log.error(f"Error chequeando partidos en vivo: {e}")
+
+
+def job_alineaciones():
+    """
+    Cada 15 min — trae la alineación confirmada de Sofascore para
+    partidos que arrancan en la próxima hora y media. Corrige que
+    jugadores/predicciones usen el heurístico de "titular probable"
+    (basado en partidos viejos, puede listar a alguien ya transferido)
+    en vez de la alineación real apenas Sofascore la publica.
+    """
+    log.info("Chequeando alineaciones confirmadas")
+    try:
+        from backend.pipeline.sofascore.job_alineaciones import correr_job_alineaciones
+        correr_job_alineaciones()
+    except Exception as e:
+        log.error(f"Error chequeando alineaciones: {e}")
+
+
 def job_fixtures_manana():
     """
     00:45 — Guarda los partidos del día SIGUIENTE.
@@ -128,22 +161,26 @@ def job_fixtures_manana():
 def iniciar_scheduler():
     log.info("=" * 55)
     log.info("  BetML Pro — Scheduler iniciado")
+    log.info("  Cada 15 min → Partidos en vivo (marcador/estado + MLOps si termina)")
+    log.info("  Cada 15 min → Alineaciones confirmadas (partidos que arrancan en <90min)")
     log.info("  23:55 → Partidos del día (FT)")
     log.info("  00:30 → Estadísticas de partidos (API-Football)")
     log.info("  00:45 → Fixtures del día siguiente")
     log.info("  01:00 → Estadísticas Sofascore (xG, corners, jugadores)")
     log.info("  01:15 → Cuotas de los próximos partidos")
     log.info("  01:30 → MLOps: cerrar predicciones vs resultado real")
-    log.info("  Domingo 03:00 → Reentrenar los 4 modelos + Dixon-Coles")
+    log.info("  03:00 (diario) → Reentrenar los 4 modelos + Dixon-Coles")
     log.info("=" * 55)
 
+    schedule.every(15).minutes.do(job_partidos_en_vivo)
+    schedule.every(15).minutes.do(job_alineaciones)
     schedule.every().day.at("23:55").do(job_pipeline_dia)
     schedule.every().day.at("00:30").do(job_estadisticas)
     schedule.every().day.at("00:45").do(job_fixtures_manana)
     schedule.every().day.at("01:00").do(job_sofascore_diario)
     schedule.every().day.at("01:15").do(job_odds)
     schedule.every().day.at("01:30").do(job_cerrar_predicciones)
-    schedule.every().sunday.at("03:00").do(job_reentrenar_modelos)
+    schedule.every().day.at("03:00").do(job_reentrenar_modelos)
 
     while True:
         schedule.run_pending()

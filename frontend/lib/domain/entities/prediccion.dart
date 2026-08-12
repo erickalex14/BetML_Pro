@@ -57,6 +57,38 @@ class Mercado {
       '$mercado: $seleccion · ${(probabilidad * 100).toStringAsFixed(0)}%';
 }
 
+// Un registro guardado (POST /guardar-mercados) — pendiente hasta que
+// el partido termina y job_cerrar_predicciones.py lo resuelve.
+class PrediccionGuardada {
+  final int id;
+  final int partidoId;
+  final String? local;
+  final String? visitante;
+  final String? liga;
+  final String mercado;
+  final String prediccion;
+  final double probabilidad;
+  final String? resultadoReal;
+  final bool? acerto; // null = pendiente
+  final DateTime? creadoEn;
+
+  const PrediccionGuardada({
+    required this.id,
+    required this.partidoId,
+    this.local,
+    this.visitante,
+    this.liga,
+    required this.mercado,
+    required this.prediccion,
+    required this.probabilidad,
+    this.resultadoReal,
+    this.acerto,
+    this.creadoEn,
+  });
+
+  bool get pendiente => acerto == null;
+}
+
 class StatsModelo {
   final int total;
   final int acertadas;

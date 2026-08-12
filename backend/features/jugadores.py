@@ -12,8 +12,28 @@ titular más seguido en los últimos partidos del equipo.
 import logging
 from sqlalchemy.orm import Session
 from backend.db.modelos import Partido, EstadisticaJugador
+from backend.pipeline.config import LIGAS_SIN_HISTORIAL_ID
 
 log = logging.getLogger(__name__)
+
+
+def obtener_lineup_confirmada(db: Session, partido_id: int, es_local: bool) -> list:
+    """XI real confirmado por Sofascore para ESTE partido (job_alineaciones.py
+    lo trae ~90 min antes del kickoff) — a diferencia de
+    obtener_titulares_probables(), esto no puede listar a un jugador que
+    ya se fue del equipo, porque es la alineación real de hoy, no un
+    conteo de partidos pasados."""
+    filas = (
+        db.query(EstadisticaJugador)
+        .filter(
+            EstadisticaJugador.partido_id == partido_id,
+            EstadisticaJugador.es_local == es_local,
+            EstadisticaJugador.titular == True,
+        )
+        .all()
+    )
+    return [{"sofascore_jugador_id": f.sofascore_jugador_id, "nombre": f.nombre,
+             "posicion": f.posicion} for f in filas]
 
 
 def obtener_titulares_probables(db: Session, equipo_id: int, fecha_limite,
@@ -29,7 +49,8 @@ def obtener_titulares_probables(db: Session, equipo_id: int, fecha_limite,
     partidos_ids = [
         p.id for p in (
             db.query(Partido.id)
-            .filter(filtro_equipo, Partido.fecha < fecha_limite, Partido.estado == "FT")
+            .filter(filtro_equipo, Partido.fecha < fecha_limite, Partido.estado == "FT",
+                    Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID))
             .order_by(Partido.fecha.desc())
             .limit(n_partidos)
         )
@@ -71,6 +92,7 @@ def calcular_forma_jugador(db: Session, sofascore_jugador_id: int, fecha_limite,
             EstadisticaJugador.sofascore_jugador_id == sofascore_jugador_id,
             Partido.fecha < fecha_limite,
             Partido.estado == "FT",
+            Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
         )
         .order_by(Partido.fecha.desc())
         .limit(n)
@@ -102,6 +124,12 @@ def calcular_forma_jugador(db: Session, sofascore_jugador_id: int, fecha_limite,
         "tiros_prom": promedio_conteo("tiros"),
         "tiros_arco_prom": promedio_conteo("tiros_arco"),
         "goles_prom": promedio_conteo("goles"),
+        "asistencias_prom": promedio_conteo("asistencias"),
+        "pases_prom": promedio_conteo("pases_completados"),
+        # "Entradas" del bookmaker de referencia — no hay una columna
+        # "tackles" separada en Sofascore, duelos_ganados es el proxy más
+        # cercano que ya tenemos guardado (duelo defensivo ganado)
+        "duelos_prom": promedio_conteo("duelos_ganados"),
         "prob_amarilla": sum(1 for f in filas if f.amarilla) / n_filas,
         "prob_roja": sum(1 for f in filas if f.roja) / n_filas,
         "minutos_prom": promedio_excluyendo_nulos("minutos_jugados", 90.0),

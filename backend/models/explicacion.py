@@ -22,7 +22,7 @@ _PARES = [
     ("tiros_arco_fav_local", "tiros_arco_fav_visit", "tiros al arco", "{:.1f}", False),
     ("corners_fav_local", "corners_fav_visit", "córners a favor", "{:.1f}", False),
     ("presiones_local", "presiones_visit", "presión defensiva", "{:.1f}", False),
-    ("posesion_local", "posesion_visit", "posesión", "{:.0%}", False),
+    ("posesion_local", "posesion_visit", "posesión", "{:.0f}%", False),
     ("rating_local", "rating_visit", "rating promedio del plantel", "{:.2f}", False),
 ]
 
@@ -32,7 +32,7 @@ _UMBRAL_PAREJO = 0.05
 
 
 def generar_resumen(features: dict, importancias: dict, nombre_local: str,
-                     nombre_visit: str, top_n: int = 5) -> list[dict]:
+                     nombre_visit: str, top_n: int = len(_PARES)) -> list[dict]:
     candidatos = []
     for feat_local, feat_visit, etiqueta, formato, invertido in _PARES:
         v_local = features.get(feat_local)

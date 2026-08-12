@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import '../providers/partidos_provider.dart';
 import '../widgets/clay.dart';
 import '../widgets/confidence.dart';
 import '../widgets/app_bottom_nav.dart';
+import '../widgets/team_logo.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,12 +18,27 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  Timer? _autoRefresh;
+
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
       if (mounted) context.read<PartidosProvider>().cargarPartidosHoy();
     });
+    // el backend refresca marcador/estado cada 15 min (job_partidos_en_vivo)
+    // — 60s alcanza para que se sienta "en vivo" sin bombardear al propio
+    // backend con requests que igual van a devolver lo mismo la mayoría
+    // de las veces
+    _autoRefresh = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) context.read<PartidosProvider>().cargarPartidosHoy(mostrarCargando: false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoRefresh?.cancel();
+    super.dispose();
   }
 
   @override
@@ -38,6 +55,16 @@ class _HomeScreenState extends State<HomeScreen> {
           const Text('Partidos'),
         ]),
         actions: [
+          IconButton(
+            icon: Icon(Icons.image_search_rounded, color: c.textSecond),
+            tooltip: 'Analizar captura',
+            onPressed: () => context.go('/analizar-captura'),
+          ),
+          IconButton(
+            icon: Icon(Icons.dashboard_customize_outlined, color: c.textSecond),
+            tooltip: 'Armar combinada',
+            onPressed: () => context.go('/parlay'),
+          ),
           IconButton(
             icon: Icon(Icons.refresh, color: c.textSecond),
             onPressed: () => context.read<PartidosProvider>().cargarPartidosHoy(),
@@ -116,7 +143,14 @@ class _FeaturedCard extends StatelessWidget {
         ]),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: Text(partido.local, maxLines: 2, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text))),
+          Expanded(
+            child: Column(children: [
+              TeamLogo(url: partido.localLogo, nombre: partido.local, size: 32),
+              const SizedBox(height: 6),
+              Text(partido.local, textAlign: TextAlign.center, maxLines: 2,
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.text)),
+            ]),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Column(children: [
@@ -124,7 +158,14 @@ class _FeaturedCard extends StatelessWidget {
               Text('hoy', style: TextStyle(fontSize: 10, color: c.textSecond)),
             ]),
           ),
-          Expanded(child: Text(partido.visitante, textAlign: TextAlign.right, maxLines: 2, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text))),
+          Expanded(
+            child: Column(children: [
+              TeamLogo(url: partido.visitanteLogo, nombre: partido.visitante, size: 32),
+              const SizedBox(height: 6),
+              Text(partido.visitante, textAlign: TextAlign.center, maxLines: 2,
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.text)),
+            ]),
+          ),
         ]),
         const SizedBox(height: 12),
         Row(children: [
@@ -232,6 +273,21 @@ class _LedgerRow extends StatelessWidget {
           Container(width: 3, height: 30, decoration: BoxDecoration(
               color: fuerte ? c.pitch : c.lineStrong, borderRadius: BorderRadius.circular(2))),
           const SizedBox(width: 11),
+          SizedBox(
+            width: 44,
+            child: Stack(children: [
+              TeamLogo(url: partido.localLogo, nombre: partido.local, size: 22),
+              Positioned(
+                left: 14,
+                child: Container(
+                  padding: const EdgeInsets.all(1.5),
+                  decoration: BoxDecoration(color: c.bg, shape: BoxShape.circle),
+                  child: TeamLogo(url: partido.visitanteLogo, nombre: partido.visitante, size: 22),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(partido.liga.toUpperCase(), style: AppTheme.eyebrow(c)),

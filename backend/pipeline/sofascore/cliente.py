@@ -328,10 +328,29 @@ class SofascoreCliente:
         temporada_id: int,
         pagina: int = 0
     ) -> list:
-        """Trae partidos históricos de una liga y temporada."""
+        """Trae partidos históricos (ya jugados) de una liga y temporada
+        — /events/last/, paginado hacia atrás desde el más reciente."""
         data = self.get(
             f"/unique-tournament/{liga_id}/season/{temporada_id}"
             f"/events/last/{pagina}"
+        )
+        if not data:
+            return []
+        return data.get("events", [])
+
+    def get_proximos_partidos_liga_temporada(
+        self,
+        liga_id: int,
+        temporada_id: int,
+        pagina: int = 0
+    ) -> list:
+        """Partidos NO jugados todavía de una liga y temporada —
+        /events/next/, lo que hace falta para anclar sofascore_id ANTES
+        del kickoff (get_partidos_liga_temporada trae solo los ya
+        jugados, sirve para historial pero no para esto)."""
+        data = self.get(
+            f"/unique-tournament/{liga_id}/season/{temporada_id}"
+            f"/events/next/{pagina}"
         )
         if not data:
             return []

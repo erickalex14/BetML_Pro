@@ -11,8 +11,10 @@ class PartidoModel extends Partido {
     required super.ligaId,
     required super.local,
     required super.localId,
+    super.localLogo,
     required super.visitante,
     required super.visitanteId,
+    super.visitanteLogo,
     required super.fecha,
     required super.estado,
     super.golesLocal,
@@ -29,8 +31,10 @@ class PartidoModel extends Partido {
       ligaId:       json['liga_id'] ?? 0,
       local:        json['local'] ?? 'Local',
       localId:      json['local_id'] ?? 0,
+      localLogo:    json['local_logo'] as String?,
       visitante:    json['visitante'] ?? 'Visitante',
       visitanteId:  json['visitante_id'] ?? 0,
+      visitanteLogo: json['visitante_logo'] as String?,
       fecha:        DateTime.tryParse(json['fecha'] ?? '') ?? DateTime.now(),
       estado:       json['estado'] ?? 'NS',
       golesLocal:   json['goles_local'] as int?,
@@ -100,6 +104,38 @@ class MercadoModel extends Mercado {
       mercado:      json['mercado'] ?? '',
       seleccion:    json['seleccion'] ?? '',
       probabilidad: (json['probabilidad'] ?? 0.0).toDouble(),
+    );
+  }
+}
+
+class PrediccionGuardadaModel extends PrediccionGuardada {
+  const PrediccionGuardadaModel({
+    required super.id,
+    required super.partidoId,
+    super.local,
+    super.visitante,
+    super.liga,
+    required super.mercado,
+    required super.prediccion,
+    required super.probabilidad,
+    super.resultadoReal,
+    super.acerto,
+    super.creadoEn,
+  });
+
+  factory PrediccionGuardadaModel.fromJson(Map<String, dynamic> json) {
+    return PrediccionGuardadaModel(
+      id: json['id'] ?? 0,
+      partidoId: json['partido_id'] ?? 0,
+      local: json['local'] as String?,
+      visitante: json['visitante'] as String?,
+      liga: json['liga'] as String?,
+      mercado: json['mercado'] ?? '',
+      prediccion: json['prediccion'] ?? '',
+      probabilidad: (json['probabilidad'] ?? 0.0).toDouble(),
+      resultadoReal: json['resultado_real'] as String?,
+      acerto: json['acerto'] as bool?,
+      creadoEn: json['creado_en'] != null ? DateTime.tryParse(json['creado_en']) : null,
     );
   }
 }

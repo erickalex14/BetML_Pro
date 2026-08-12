@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from backend.db.modelos import Partido, EstadisticaSofascore, EstadisticaJugador
+from backend.pipeline.config import LIGAS_SIN_HISTORIAL_ID
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ def obtener_secuencia_equipo(db: Session, equipo_id: int, fecha_limite,
                 Partido.equipo_visit_id == equipo_id),
             Partido.fecha < fecha_limite,
             Partido.estado == "FT",
+            Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
         )
         .order_by(Partido.fecha.desc())
         .limit(n)
@@ -75,7 +77,8 @@ def calcular_forma(db: Session, equipo_id: int, fecha_limite,
                 Partido.equipo_local_id == equipo_id,
                 Partido.fecha < fecha_limite,
                 Partido.estado == "FT",
-                Partido.goles_local != None
+                Partido.goles_local != None,
+                Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
             )
             .order_by(Partido.fecha.desc())
             .limit(n).all()
@@ -87,7 +90,8 @@ def calcular_forma(db: Session, equipo_id: int, fecha_limite,
                 Partido.equipo_visit_id == equipo_id,
                 Partido.fecha < fecha_limite,
                 Partido.estado == "FT",
-                Partido.goles_visitante != None
+                Partido.goles_visitante != None,
+                Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
             )
             .order_by(Partido.fecha.desc())
             .limit(n).all()
@@ -139,7 +143,8 @@ def calcular_stats_sofascore(db: Session, equipo_id: int,
             .filter(
                 Partido.equipo_local_id == equipo_id,
                 Partido.fecha < fecha_limite,
-                Partido.estado == "FT"
+                Partido.estado == "FT",
+                Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
             )
             .order_by(Partido.fecha.desc())
             .limit(n).all()
@@ -150,7 +155,8 @@ def calcular_stats_sofascore(db: Session, equipo_id: int,
             .filter(
                 Partido.equipo_visit_id == equipo_id,
                 Partido.fecha < fecha_limite,
-                Partido.estado == "FT"
+                Partido.estado == "FT",
+                Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
             )
             .order_by(Partido.fecha.desc())
             .limit(n).all()
@@ -241,6 +247,7 @@ def calcular_rating_jugadores(db: Session, equipo_id: int,
                 Partido.equipo_local_id == equipo_id,
                 Partido.fecha < fecha_limite,
                 Partido.estado == "FT",
+                Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
             )
             .order_by(Partido.fecha.desc())
             .limit(n)
@@ -252,6 +259,7 @@ def calcular_rating_jugadores(db: Session, equipo_id: int,
                 Partido.equipo_visit_id == equipo_id,
                 Partido.fecha < fecha_limite,
                 Partido.estado == "FT",
+                Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
             )
             .order_by(Partido.fecha.desc())
             .limit(n)
@@ -291,7 +299,8 @@ def calcular_h2h(db: Session, local_id: int, visit_id: int,
             Partido.equipo_visit_id == visit_id,
             Partido.fecha < fecha_limite,
             Partido.estado == "FT",
-            Partido.goles_local != None
+            Partido.goles_local != None,
+            Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
         )
         .order_by(Partido.fecha.desc())
         .limit(n).all()
@@ -337,7 +346,8 @@ def calcular_win_rate(db: Session, equipo_id: int,
                 Partido.equipo_local_id == equipo_id,
                 Partido.fecha < fecha_limite,
                 Partido.estado == "FT",
-                Partido.goles_local != None
+                Partido.goles_local != None,
+                Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
             )
             .order_by(Partido.fecha.desc())
             .limit(n).all()
@@ -349,7 +359,8 @@ def calcular_win_rate(db: Session, equipo_id: int,
                 Partido.equipo_visit_id == equipo_id,
                 Partido.fecha < fecha_limite,
                 Partido.estado == "FT",
-                Partido.goles_visitante != None
+                Partido.goles_visitante != None,
+                Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
             )
             .order_by(Partido.fecha.desc())
             .limit(n).all()

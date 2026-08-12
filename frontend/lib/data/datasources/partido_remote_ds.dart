@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../../core/constants.dart';
 import '../../core/errors/failures.dart';
 import '../models/partido_model.dart';
+import '../models/recomendadas_model.dart';
 
 class PartidoRemoteDataSource {
   final http.Client _client;
@@ -71,5 +72,30 @@ class PartidoRemoteDataSource {
   Future<StatsModeloModel> getStatsModelo() async {
     final data = await _get(ApiConstants.statsModelo);
     return StatsModeloModel.fromJson(data);
+  }
+
+  Future<List<PrediccionGuardadaModel>> getPrediccionesMias({String? estado}) async {
+    final query = estado != null ? '?estado=$estado' : '';
+    final data = await _get('${ApiConstants.prediccionesMias}$query');
+    return (data['predicciones'] as List)
+        .map((p) => PrediccionGuardadaModel.fromJson(p))
+        .toList();
+  }
+
+  // Escanea todos los partidos de hoy — más lento que el resto (unos
+  // segundos), timeout propio en vez del genérico de 10s
+  Future<RecomendadasModel> getRecomendadas() async {
+    try {
+      final response = await _client
+          .get(Uri.parse('${ApiConstants.baseUrl}${ApiConstants.recomendadas}'))
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200) {
+        return RecomendadasModel.fromJson(json.decode(response.body) as Map<String, dynamic>);
+      }
+      throw ServerFailure('Error del servidor', response.statusCode);
+    } catch (e) {
+      if (e is ServerFailure) rethrow;
+      throw NetworkFailure('Sin conexión: $e');
+    }
   }
 }
