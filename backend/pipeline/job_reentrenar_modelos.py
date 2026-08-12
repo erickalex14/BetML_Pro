@@ -19,6 +19,7 @@ from backend.models.mlp import entrenar_mlp, guardar_mlp
 from backend.models.lstm import entrenar_lstm, guardar_lstm
 from backend.models.gnn import entrenar_gnn, guardar_gnn
 from backend.models.montecarlo import ajustar_rho_dixon_coles
+from backend.models.calibracion_produccion import ajustar_desde_predicciones
 from backend.db.database import SessionLocal
 
 logging.basicConfig(
@@ -61,6 +62,11 @@ def correr_reentrenamiento_completo():
 
         ajustar_rho_dixon_coles(db)
         log.info("rho Dixon-Coles reajustado con datos frescos")
+
+        # Lo único que aprende de las predicciones ACERTADAS/FALLADAS y
+        # no del dataset: si lo que declaramos como "72%" pasa el 72% de
+        # las veces en la realidad. Ver calibracion_produccion.py.
+        ajustar_desde_predicciones(db)
     finally:
         db.close()
 

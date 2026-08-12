@@ -1,5 +1,12 @@
 class ApiConstants {
-  static const String baseUrl = 'http://localhost:8001';
+  // Se fija en tiempo de BUILD, no en runtime:
+  //   flutter build apk --dart-define=API_BASE_URL=http://IP:PUERTO
+  // Sin el flag queda en localhost, que sirve para desarrollo web pero
+  // NO para un APK (en un celular "localhost" es el propio celular).
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8001',
+  );
 
   static const String partidosHoy = '/partidos/hoy';
   static const String partido = '/partidos';

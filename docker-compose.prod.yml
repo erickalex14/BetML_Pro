@@ -1,0 +1,54 @@
+# BetML Pro en el servidor — API + scheduler + Postgres.
+#
+# El .env NO va en la imagen (está gitignoreado y así debe quedar): se
+# monta/lee desde el server. Ojo con DB_URL: adentro de Docker el host
+# de la base es "db", no localhost.
+services:
+  betml-db:
+    image: postgres:16-alpine
+    container_name: betml-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-betml}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-betml}
+    volumes:
+      - betml-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-betml}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  betml-api:
+    build: .
+    image: betml-pro:latest
+    container_name: betml-api
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      betml-db:
+        condition: service_healthy
+    ports:
+      - "${BETML_PUERTO:-8001}:8001"
+    volumes:
+      # Los modelos se reentrenan a diario y los escribe el scheduler —
+      # volumen compartido para que la API sirva SIEMPRE la última
+      # versión sin reconstruir la imagen.
+      - betml-modelos:/app/data/models
+
+  betml-scheduler:
+    image: betml-pro:latest
+    container_name: betml-scheduler
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      betml-db:
+        condition: service_healthy
+    command: ["python", "-m", "backend.scheduler.scheduler"]
+    volumes:
+      - betml-modelos:/app/data/models
+
+volumes:
+  betml-pgdata:
+  betml-modelos:
