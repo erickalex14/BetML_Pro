@@ -21,6 +21,12 @@ services:
       # que pg_upgrade funcione. Montar el path viejo hace que el
       # contenedor arranque y muera con "unused mount/volume".
       - betml-pgdata:/var/lib/postgresql
+    ports:
+      # SOLO 127.0.0.1: la base no queda expuesta a internet. Para
+      # trabajar en local contra esta base se abre un túnel SSH
+      # (ver README de deploy), que es lo mismo que hace el resto de
+      # los stacks del server.
+      - "127.0.0.1:5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-betml}"]
       interval: 10s
@@ -33,6 +39,11 @@ services:
     container_name: betml-api
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Sin esto el contenedor corre en UTC: date.today() adelanta el
+      # día 5 horas antes que acá y el pipeline pediría los fixtures de
+      # mañana creyendo que son los de hoy.
+      TZ: America/Guayaquil
     depends_on:
       betml-db:
         condition: service_healthy
@@ -54,6 +65,11 @@ services:
     container_name: betml-scheduler
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Crítico acá: schedule.every().day.at("03:00") usa la hora LOCAL
+      # del sistema. En UTC el reentreno caería 22:00 de Guayaquil y
+      # todos los jobs nocturnos correrían corridos 5 horas.
+      TZ: America/Guayaquil
     depends_on:
       betml-db:
         condition: service_healthy
