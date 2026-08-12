@@ -1,5 +1,44 @@
 # BetML Pro — Estado al 2026-08-12
 
+## PRODUCCIÓN (beta 0.1.0) — YA DESPLEGADO
+
+**URL pública:** `https://novitec.com.ec/betml` (HTTPS, certificado ya
+existente del dominio; ruta agregada al nginx de aaPanel siguiendo el
+mismo patrón que `/sgn` y `/reportesmba`). El `proxy_pass` con barra
+final corta el prefijo, así que la API no sabe que vive bajo un subpath.
+
+**Server:** 181.198.104.181 (SSH puerto 27619). Stack en
+`/home/novitecadmin/betml-stack/betml-pro`, tres contenedores:
+`betml-api` (8010), `betml-scheduler`, `betml-db` (Postgres 18,
+127.0.0.1:5434, NO expuesta a internet).
+
+```bash
+# desplegar cambios
+BETML_SSH_HOST=... BETML_SSH_USER=... BETML_SSH_PASS=... BETML_SSH_PORT=27619 \
+  python deploy/deploy_betml.py
+
+# trabajar en local contra la BD de producción (dejar corriendo aparte)
+python deploy/tunel_bd.py
+```
+
+**El scheduler corre SOLO en el server.** No levantar el local a la vez:
+comparten la misma cuota de 100 requests/día de API-Football.
+
+**Trampas que ya costaron tiempo, no repetirlas:**
+- El puerto 8001 en ese server lo usa `novitec-sgn`. BetML va en 8010.
+- `torch==2.13.0+cpu` no está en PyPI; el Dockerfile agrega el índice
+  de PyTorch.
+- La versión de Postgres del contenedor debe coincidir con la del
+  `pg_dump` local (18), si no `pg_restore` rebota el dump.
+- Postgres 18+ monta el volumen en `/var/lib/postgresql`, no en
+  `.../data`.
+- Los contenedores necesitan `TZ=America/Guayaquil`: en UTC,
+  `date.today()` adelanta el día y `schedule.at("03:00")` dispara 5
+  horas corrido.
+- Git Bash reescribe rutas `/home/...` a `C:/Program Files/Git/home/...`
+  — usar `MSYS_NO_PATHCONV=1` al pasar rutas remotas.
+
+
 Sesión larga: backend ganó explicabilidad + tab de recomendadas; frontend
 pasó de 3 pantallas viejas a app completa (auth, redesign, todos los
 endpoints conectados). Este doc es para retomar después de `/clear` sin
