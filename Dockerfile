@@ -16,7 +16,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# El índice extra es por torch: requirements pide "2.13.0+cpu", y ese
+# sufijo solo existe en el repo de PyTorch, no en PyPI (sin esto el
+# build muere con "No matching distribution found for torch==2.13.0+cpu").
+RUN pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt
 
 # Chromium para Playwright — después de las libs de arriba
 RUN python -m playwright install chromium

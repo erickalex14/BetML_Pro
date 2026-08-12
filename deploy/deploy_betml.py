@@ -65,10 +65,18 @@ def archivos_a_subir():
 
 
 def mkdir_p(sftp, directorio: str):
-    actual = ""
-    for parte in directorio.split("/"):
-        if not parte:
-            continue
+    """Crea los directorios que falten, pero SOLO por debajo de REMOTO.
+
+    Recorrer desde "/" falla: el usuario no tiene permiso para crear
+    /home y el intento revienta el deploy entero aunque el directorio ya
+    exista. REMOTO se crea una vez a mano (o con mkdir -p por SSH)."""
+    if not directorio.startswith(REMOTO):
+        return
+    relativo = directorio[len(REMOTO):].strip("/")
+    if not relativo:
+        return
+    actual = REMOTO
+    for parte in relativo.split("/"):
         actual += "/" + parte
         try:
             sftp.stat(actual)

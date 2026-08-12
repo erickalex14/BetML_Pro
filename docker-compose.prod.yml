@@ -5,7 +5,10 @@
 # de la base es "db", no localhost.
 services:
   betml-db:
-    image: postgres:16-alpine
+    # 18 y no 16: tiene que coincidir con la versión de pg_dump que
+    # genera el dump local, si no pg_restore rebota el archivo
+    # ("unsupported version (1.16) in file header").
+    image: postgres:18-alpine
     container_name: betml-db
     restart: unless-stopped
     environment:
@@ -13,7 +16,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-betml}
     volumes:
-      - betml-pgdata:/var/lib/postgresql/data
+      # En las imágenes 18+ el montaje va en /var/lib/postgresql (no en
+      # .../data): adentro crean un subdirectorio por versión mayor para
+      # que pg_upgrade funcione. Montar el path viejo hace que el
+      # contenedor arranque y muera con "unused mount/volume".
+      - betml-pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-betml}"]
       interval: 10s
@@ -30,7 +37,12 @@ services:
       betml-db:
         condition: service_healthy
     ports:
-      - "${BETML_PUERTO:-8001}:8001"
+      # 8010 y no 8001: en el server 8001 ya lo usa novitec-sgn.
+      # 0.0.0.0 (y no 127.0.0.1 como el resto de los stacks) porque el
+      # APK entra desde afuera por IP:puerto — el resto de los servicios
+      # de ese server salen por nginx, este todavía no. Ver README de
+      # deploy: conviene moverlo detrás de un subdominio con HTTPS.
+      - "${BETML_PUERTO:-8010}:8001"
     volumes:
       # Los modelos se reentrenan a diario y los escribe el scheduler —
       # volumen compartido para que la API sirva SIEMPRE la última
