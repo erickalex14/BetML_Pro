@@ -36,7 +36,10 @@ class PartidoModel extends Partido {
       visitante:    json['visitante'] ?? 'Visitante',
       visitanteId:  json['visitante_id'] ?? 0,
       visitanteLogo: json['visitante_logo'] as String?,
-      fecha:        DateTime.tryParse(json['fecha'] ?? '') ?? DateTime.now(),
+      // El backend manda la fecha en UTC marcada con "Z"; toLocal() la
+      // pasa a la zona del celular. Sin esto la hora salía 5 h tarde en
+      // Ecuador (Pafos aparecía 17:00 jugándose 12:00).
+      fecha:        (DateTime.tryParse(json['fecha'] ?? '') ?? DateTime.now()).toLocal(),
       estado:       json['estado'] ?? 'NS',
       minuto:       json['minuto'] as int?,
       golesLocal:   json['goles_local'] as int?,

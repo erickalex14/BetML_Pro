@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     model_name:        str = "modelo_v1.pkl"
     umbral_confianza:  float = 0.60
 
+    #CUOTAS — fuentes gratis además de Sofascore (ver
+    # backend/pipeline/odds/orquestador.py). Vacías = esa fuente se
+    # saltea sola, no rompe nada. Van declaradas acá porque Settings
+    # rechaza claves del .env que no conozca.
+    the_odds_api_key:      str = ""
+    odds_api_io_key:       str = ""
+
     #AUTH — JWT_SECRET_KEY debe venir del .env en producción (nunca el
     # default de acá, es público en el repo). Generar con:
     # python -c "import secrets; print(secrets.token_hex(32))"

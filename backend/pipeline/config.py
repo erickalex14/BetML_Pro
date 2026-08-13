@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -22,15 +22,25 @@ _TZ_PARTIDOS = ZoneInfo("America/Guayaquil")
 
 
 def ahora_partidos() -> datetime:
-    """"Ahora" en la misma zona horaria naive que Partido.fecha —
-    pipeline_dia.py pide los fixtures con timezone=America/Guayaquil y
-    los guarda tal cual (naive, sin tzinfo). Comparar eso contra
-    datetime.utcnow() (bug real encontrado en sesión, en
-    job_partidos_en_vivo.py y job_alineaciones.py) desalinea 5 horas:
-    con UTC siempre "adelantado" respecto al valor guardado, un chequeo
-    tipo "arranca en los próximos 90 min" puede evaluar mal el partido
-    equivocado según en qué momento del día se corra."""
-    return datetime.now(_TZ_PARTIDOS).replace(tzinfo=None)
+    """"Ahora" en la misma referencia que Partido.fecha, para poder
+    compararlos.
+
+    **Partido.fecha está en UTC**, aunque pipeline_dia.py pida los
+    fixtures con timezone=America/Guayaquil. Medido el 2026-08-13 contra
+    los startTimestamp de Sofascore en 8 partidos anclados: los 8 dieron
+    exactamente 0.0 h de diferencia contra UTC. El síntoma que lo
+    delató: la app mostraba el partido de Pafos a las 17:00 cuando en
+    Ecuador se jugaba 12:00.
+
+    Antes esta función devolvía hora de Guayaquil dando por sentado lo
+    contrario, así que todas las comparaciones contra fecha estaban
+    corridas 5 horas: la detección de "ya debería haber arrancado", la
+    ventana de 90 min de las alineaciones y los límites del día.
+
+    Ojo: NO usar para mostrarle horas al usuario. Para eso el backend
+    manda la fecha marcada como UTC y el celular la pasa a su hora
+    local (ver PartidoService._enriquecer)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 #ID'S DE LAS LIGAS
 

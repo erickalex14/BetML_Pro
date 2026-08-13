@@ -40,8 +40,16 @@ class PartidoService:
             "visitante":   visitante.nombre if visitante else "Desconocido",
             "visitante_id":partido.equipo_visit_id,
             "visitante_logo": visitante.logo_url if visitante else None,
-            "fecha":       str(partido.fecha),
-            "hora":        str(partido.fecha)[11:16],
+            # Partido.fecha está guardado en UTC (medido contra Sofascore
+            # el 2026-08-13: 8 de 8 partidos con 0.0 h de diferencia). Se
+            # manda marcado con "Z" para que el celular lo pase a la hora
+            # local del usuario; antes iba sin marca y la app lo mostraba
+            # como si ya fuera hora local, con 5 horas de atraso (el
+            # partido de Pafos salía 17:00 cuando se jugaba 12:00).
+            "fecha":       partido.fecha.isoformat() + "Z",
+            # UTC también — la app no usa este campo, calcula la hora
+            # desde "fecha" para poder mostrarla en la zona del celular.
+            "hora":        partido.fecha.strftime("%H:%M"),
             "estado":      partido.estado,
             "minuto":      partido.minuto,
             "goles_local": partido.goles_local,

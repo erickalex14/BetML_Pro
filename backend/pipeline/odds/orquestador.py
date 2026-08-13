@@ -71,6 +71,14 @@ def _fuente_the_odds_api(db, partidos) -> int:
     return traer_cuotas(db, partidos)
 
 
+def _fuente_odds_api_io(db, partidos) -> int:
+    if not os.environ.get("ODDS_API_IO_KEY"):
+        log.info("odds-api.io: sin ODDS_API_IO_KEY en el entorno — se salta")
+        return 0
+    from backend.pipeline.odds.odds_api_io import traer_cuotas
+    return traer_cuotas(db, partidos)
+
+
 def _fuente_api_football(db, partidos) -> int:
     from backend.pipeline.presupuesto import hay_presupuesto
     # Solo si sobra cuota de verdad: este es el recurso que queremos
@@ -86,6 +94,7 @@ def _fuente_api_football(db, partidos) -> int:
 FUENTES = [
     ("Sofascore", _fuente_sofascore),
     ("The Odds API", _fuente_the_odds_api),
+    ("odds-api.io", _fuente_odds_api_io),
     ("API-Football", _fuente_api_football),
 ]
 
