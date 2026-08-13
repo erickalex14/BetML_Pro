@@ -124,6 +124,20 @@ def job_partidos_en_vivo():
         log.error(f"Error chequeando partidos en vivo: {e}")
 
 
+def job_guardar_recomendadas():
+    """
+    01:45 — deja registradas las recomendadas del día para que se
+    cierren solas contra el resultado real. Después de job_odds (01:15)
+    porque sin cuotas guardadas no hay value bets que recomendar.
+    """
+    log.info("Iniciando guardado de recomendadas (01:45)")
+    try:
+        from backend.pipeline.job_guardar_recomendadas import correr_job_guardar_recomendadas
+        correr_job_guardar_recomendadas()
+    except Exception as e:
+        log.error(f"Error guardando recomendadas: {e}")
+
+
 def job_odds_en_vivo():
     """
     Cada 20 min — cuotas en vivo (GET /odds/live, UNA sola llamada trae
@@ -206,6 +220,7 @@ def iniciar_scheduler():
     log.info("  01:00 → Estadísticas Sofascore (xG, corners, jugadores)")
     log.info("  01:15 → Cuotas de los próximos partidos")
     log.info("  01:30 → MLOps: cerrar predicciones vs resultado real")
+    log.info("  01:45 → Guardar recomendadas del día para seguimiento")
     log.info("  03:00 (diario) → Reentrenar los 4 modelos + Dixon-Coles")
     log.info("=" * 55)
 
@@ -222,6 +237,7 @@ def iniciar_scheduler():
     schedule.every().day.at("01:00").do(job_sofascore_diario)
     schedule.every().day.at("01:15").do(job_odds)
     schedule.every().day.at("01:30").do(job_cerrar_predicciones)
+    schedule.every().day.at("01:45").do(job_guardar_recomendadas)
     schedule.every().day.at("03:00").do(job_reentrenar_modelos)
 
     while True:

@@ -52,16 +52,24 @@ def _correr_montecarlo_partido(db: Session, partido, pred: dict,
     sf_local = calcular_stats_sofascore(db, partido.equipo_local_id, partido.fecha, es_local=True)
     sf_visit = calcular_stats_sofascore(db, partido.equipo_visit_id, partido.fecha, es_local=False)
 
+    # Encogimiento hacia la media global: el promedio de 5 partidos es
+    # muy ruidoso y en rachas extremas mandaba lambdas absurdos (ver
+    # backend/features/medias_liga.py — con PSG daba 85% al Over 11.5
+    # córners cuando la frecuencia real es 27%).
+    from backend.features.medias_liga import medias_globales, encoger
+    m = medias_globales(db)
+    n_local, n_visit = sf_local["n_con_stats"], sf_visit["n_con_stats"]
+
     mc = simular_partido(
         xg_local=xg_local,
         xg_visitante=xg_visit,
         n_simulaciones=n_simulaciones,
-        corners_local=sf_local["corners_favor"] or None,
-        corners_visit=sf_visit["corners_favor"] or None,
-        amarillas_local=sf_local["amarillas_favor"] or None,
-        amarillas_visit=sf_visit["amarillas_favor"] or None,
-        rojas_local=sf_local["rojas_favor"] or None,
-        rojas_visit=sf_visit["rojas_favor"] or None,
+        corners_local=encoger(sf_local["corners_favor"], n_local, m["corners_local"]),
+        corners_visit=encoger(sf_visit["corners_favor"], n_visit, m["corners_visit"]),
+        amarillas_local=encoger(sf_local["amarillas_favor"], n_local, m["amarillas_local"]),
+        amarillas_visit=encoger(sf_visit["amarillas_favor"], n_visit, m["amarillas_visit"]),
+        rojas_local=encoger(sf_local["rojas_favor"], n_local, m["rojas_local"]),
+        rojas_visit=encoger(sf_visit["rojas_favor"], n_visit, m["rojas_visit"]),
         incluir_handicap=True,
         incluir_ht=True,
     )
