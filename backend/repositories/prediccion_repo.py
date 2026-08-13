@@ -10,9 +10,12 @@ class PrediccionRepository:
     #Crear una prediccion
     def crear(self, partido_id: int, mercado: str,
               prediccion: str, probabilidad: float,
-              confianza: float) -> Prediccion:
+              confianza: float, usuario_id: int | None = None) -> Prediccion:
+        """usuario_id=None significa "la generó el sistema" — ver el
+        docstring de Prediccion."""
 
         pred = Prediccion(
+            usuario_id=usuario_id,
             partido_id=partido_id,
             mercado=mercado,
             prediccion=prediccion,
@@ -37,8 +40,15 @@ class PrediccionRepository:
     # "acertada"/"fallada" (acerto True/False). Sin usuario_id en la
     # tabla todavía (ver HANDOFF) — esto es TODO lo guardado, no
     # filtrado por cuenta; en un solo-usuario real hoy no importa.
-    def listar(self, estado: str | None = None, limite: int = 100) -> List[Prediccion]:
+    def listar(self, estado: str | None = None, limite: int = 100,
+               usuario_id: int | None = None) -> List[Prediccion]:
+        """usuario_id es OBLIGATORIO en la práctica para la pantalla de
+        "Mis predicciones": sin filtrar, un usuario veía las de todos.
+        Se deja opcional para los usos internos (MLOps) que sí necesitan
+        mirar todas."""
         q = self.db.query(Prediccion)
+        if usuario_id is not None:
+            q = q.filter(Prediccion.usuario_id == usuario_id)
         if estado == "pendiente":
             q = q.filter(Prediccion.acerto.is_(None))
         elif estado == "acertada":

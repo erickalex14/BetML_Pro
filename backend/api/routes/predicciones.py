@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from backend.db.database import get_db
+from backend.db.modelos import Usuario
+from backend.core.deps import get_usuario_actual
 from backend.services.prediccion_service import PrediccionService
 from backend.models.kelly import analizar_mercados_kelly
 from backend.models.calibracion import cargar_calibracion
@@ -83,18 +85,27 @@ def predicciones_hoy(db: Session = Depends(get_db)):
 
 
 @router.get("/mias")
-def predicciones_mias(estado: Optional[str] = None, db: Session = Depends(get_db)):
+def predicciones_mias(
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
     """
-    Historial de predicciones guardadas (ver POST /{id}/guardar-mercados)
-    — para la pantalla "Mis predicciones". estado: pendiente|acertada|fallada,
-    sin pasar devuelve todo.
+    Historial de predicciones guardadas por ESTE usuario (ver POST
+    /{id}/guardar-mercados). estado: pendiente|acertada|fallada, sin
+    pasar devuelve todo.
+
+    Filtra por usuario: antes devolvía las de todos, así que cualquiera
+    veía lo que guardaban los demás. Las generadas por el sistema
+    (usuario_id NULL) tampoco aparecen acá — esas viven en la pantalla
+    de recomendadas.
     """
     from backend.repositories.prediccion_repo import PrediccionRepository
     from backend.repositories.partido_repo import PartidoRepository
 
     repo_pred = PrediccionRepository(db)
     repo_partido = PartidoRepository(db)
-    filas = repo_pred.listar(estado=estado)
+    filas = repo_pred.listar(estado=estado, usuario_id=usuario.id)
 
     resultado = []
     for f in filas:
@@ -259,7 +270,12 @@ class GuardarMercadosRequest(BaseModel):
 
 
 @router.post("/{partido_id}/guardar-mercados")
-def guardar_mercados(partido_id: int, body: GuardarMercadosRequest, db: Session = Depends(get_db)):
+def guardar_mercados(
+    partido_id: int,
+    body: GuardarMercadosRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
     """
     Guarda como Prediccion los mercados que el usuario ELIGIÓ (no
     automático como el guardar=True de /kelly, que solo guarda value
@@ -304,6 +320,7 @@ def guardar_mercados(partido_id: int, body: GuardarMercadosRequest, db: Session 
             prediccion=m["mercado"],
             probabilidad=m["probabilidad"],
             confianza=m["probabilidad"],
+            usuario_id=usuario.id,
         )
         guardados.append(clave)
 

@@ -104,9 +104,18 @@ class EstadisticaPartido(Base):
 
 
 class Prediccion(Base):
+    """Una predicción guardada para seguimiento.
+
+    usuario_id NULL = la generó el sistema (el ensemble al predecir, o
+    el job que guarda las recomendadas del día). Esas NO se le muestran
+    a nadie en "Mis predicciones" — ahí cada usuario ve solo las suyas —
+    pero SÍ cuentan para /stats/modelo y para la calibración de
+    producción, que miden qué tan bien predice el sistema en general.
+    """
     __tablename__ = "predicciones"
 
     id             = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id     = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
     partido_id     = Column(Integer, ForeignKey("partidos.id"))
     mercado        = Column(String(50))
     prediccion     = Column(String(50))

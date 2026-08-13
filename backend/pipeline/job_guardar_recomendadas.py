@@ -30,9 +30,15 @@ logging.basicConfig(
 
 
 def _ya_guardada(db, partido_id: int, mercado: str) -> bool:
+    """Solo mira las del SISTEMA (usuario_id NULL). Si mirara todas, que
+    un usuario guardara ese mercado en su historial haría que el sistema
+    no registre su propia recomendación, y la recomendación quedaría sin
+    seguimiento."""
     return (
         db.query(Prediccion)
-        .filter(Prediccion.partido_id == partido_id, Prediccion.mercado == mercado)
+        .filter(Prediccion.partido_id == partido_id,
+                Prediccion.mercado == mercado,
+                Prediccion.usuario_id.is_(None))
         .first()
         is not None
     )
