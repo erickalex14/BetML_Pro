@@ -138,6 +138,21 @@ def job_partidos_en_vivo():
         log.error(f"Error chequeando partidos en vivo: {e}")
 
 
+def job_odds_sofascore():
+    """
+    01:10 — cuotas de bet365 vía Sofascore, gratis. Va ANTES del job de
+    cuotas de API-Football (01:15) para que ese quede como relleno de lo
+    que Sofascore no cubrió, y no al revés.
+    """
+    log.info("Iniciando cuotas Sofascore (01:10)")
+    try:
+        from backend.pipeline.sofascore.job_odds_sofascore import correr_job_odds_sofascore
+        correr_job_odds_sofascore()
+        log.info("Cuotas Sofascore completadas")
+    except Exception as e:
+        log.error(f"Error en cuotas Sofascore: {e}")
+
+
 def job_guardar_recomendadas():
     """
     01:45 — deja registradas las recomendadas del día para que se
@@ -232,7 +247,8 @@ def iniciar_scheduler():
     log.info("  00:30 → Estadísticas de partidos (API-Football)")
     log.info("  00:45 → Fixtures del día siguiente")
     log.info("  01:00 → Estadísticas Sofascore (xG, corners, jugadores)")
-    log.info("  01:15 → Cuotas de los próximos partidos")
+    log.info("  01:10 → Cuotas por Sofascore (gratis, fuente principal)")
+    log.info("  01:15 → Cuotas API-Football (relleno de lo que falte)")
     log.info("  01:30 → MLOps: cerrar predicciones vs resultado real")
     log.info("  01:45 → Guardar recomendadas del día para seguimiento")
     log.info("  03:00 (diario) → Reentrenar los 4 modelos + Dixon-Coles")
@@ -252,6 +268,7 @@ def iniciar_scheduler():
     schedule.every().day.at("00:30").do(job_estadisticas)
     schedule.every().day.at("00:45").do(job_fixtures_manana)
     schedule.every().day.at("01:00").do(job_sofascore_diario)
+    schedule.every().day.at("01:10").do(job_odds_sofascore)
     schedule.every().day.at("01:15").do(job_odds)
     schedule.every().day.at("01:30").do(job_cerrar_predicciones)
     schedule.every().day.at("01:45").do(job_guardar_recomendadas)
