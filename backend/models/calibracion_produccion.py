@@ -58,7 +58,13 @@ FACTOR_MIN, FACTOR_MAX = 0.5, 1.3
 
 def familia_de(mercado: str) -> str:
     """Agrupa las claves de mercado en familias que comparten mecánica.
-    Mismo vocabulario que las claves de kelly.py."""
+    Mismo vocabulario que las claves de kelly.py.
+
+    El ORDEN importa: los prefijos más específicos van primero, si no
+    "goles_1t_over_0_5" caería en la familia "goles" y mezclaría los
+    goles del primer tiempo con los del partido entero, que se comportan
+    distinto (en 45 minutos se hacen menos goles, obviamente).
+    """
     m = mercado or ""
     if m.startswith("corners"):
         return "corners"
@@ -68,19 +74,49 @@ def familia_de(mercado: str) -> str:
         return "rojas"
     if m.startswith("goles_equipo"):
         return "goles_equipo"
+    if m.startswith("goles_1t"):
+        return "goles_1t"
     if m.startswith("goles"):
         return "goles"
     if m.startswith("btts"):
         return "btts"
     if m.startswith("handicap"):
         return "handicap"
+    if m.startswith("1t_"):
+        return "resultado_1t"
+    if m.startswith("2t_"):
+        return "resultado_2t"
     if m in ("local", "empate", "visitante"):
         return "1x2"
     return "otros"
 
 
+def calcular_factor(n: int, declarado: float, real: float) -> float:
+    """El cálculo, aparte de la base de datos para poder probarlo solo.
+
+    Mezcla lo observado con "no corregir nada", pesando por cuánta
+    muestra hay: con n=K está a mitad de camino, con n mucho mayor que K
+    manda lo observado. Los topes evitan que una racha mala anule una
+    probabilidad o que una buena la infle.
+    """
+    if n <= 0 or declarado <= 0:
+        return 1.0
+    factor = (n * real + K_ENCOGIMIENTO * declarado) / ((n + K_ENCOGIMIENTO) * declarado)
+    return max(FACTOR_MIN, min(FACTOR_MAX, factor))
+
+
 def ajustar_desde_predicciones(db, guardar: bool = True) -> dict:
-    """Calcula un factor de corrección por familia de mercado."""
+    """Calcula un factor de corrección por familia de mercado.
+
+    Mira TODAS las predicciones cerradas, sin filtrar por usuario: las
+    que guardó el sistema (recomendadas del día) y las que guardó cada
+    usuario cuentan igual. A propósito — con 10 personas guardando
+    predicciones hay 10 veces más señal sobre qué tan confiables son
+    nuestros números, y esa señal es la misma sirva a quien sirva.
+
+    (El aislamiento entre usuarios es solo de VISIBILIDAD: cada uno ve
+    lo suyo en la app. Para medir al sistema hacen falta todas.)
+    """
     from backend.db.modelos import Prediccion
 
     filas = (
@@ -107,10 +143,7 @@ def ajustar_desde_predicciones(db, guardar: bool = True) -> dict:
         if declarado <= 0:
             continue
 
-        # Encogido hacia 1 según cuánta muestra hay: es
-        # (n*real + k*declarado) / ((n+k)*declarado)
-        factor = (n * real + K_ENCOGIMIENTO * declarado) / ((n + K_ENCOGIMIENTO) * declarado)
-        factor = max(FACTOR_MIN, min(FACTOR_MAX, factor))
+        factor = calcular_factor(n, declarado, real)
 
         factores[fam] = {
             "factor": round(factor, 4),

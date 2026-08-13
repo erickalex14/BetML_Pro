@@ -21,17 +21,21 @@ def stats_modelo(db: Session = Depends(get_db)):
     repo = PrediccionRepository(db)
     stats = repo.get_stats()
 
-    calib = cargar()
-    if calib:
-        stats["calibracion_real"] = {
-            "n_muestras": calib["n_muestras"],
-            "prob_media_declarada": round(calib["prob_media_declarada"], 4),
-            "acierto_real": round(calib["acierto_real"], 4),
-            "desvio": round(calib["acierto_real"] - calib["prob_media_declarada"], 4),
-        }
-    else:
-        stats["calibracion_real"] = {
-            "n_muestras": 0,
-            "mensaje": f"Hacen falta {MIN_MUESTRAS} predicciones cerradas para medirlo",
-        }
+    factores = cargar()
+    stats["calibracion_real"] = {
+        "por_mercado": {
+            familia: {
+                "n": d["n"],
+                "declarado": d["declarado"],
+                "real": d["real"],
+                "factor": d["factor"],
+                "desvio": round(d["real"] - d["declarado"], 4),
+            }
+            for familia, d in factores.items()
+        },
+        "minimo_por_mercado": MIN_MUESTRAS,
+        "mensaje": (None if factores else
+                    f"Ninguna familia de mercado llega a {MIN_MUESTRAS} "
+                    f"predicciones cerradas todavía"),
+    }
     return stats
