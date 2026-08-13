@@ -33,14 +33,28 @@ def job_reentrenar_modelos():
 
 def job_pipeline_dia():
     """
-    23:55 — Guarda todos los partidos del día con estado final.
-    1 request total.
+    23:55 — Cierra el día que termina Y baja los partidos del que
+    empieza. 2 requests.
+
+    Lo segundo es redundante con el job de las 00:45 a propósito: la
+    agenda tenía un hueco de un día entero. Este job baja "hoy" (el día
+    que está por terminar) y el de las 00:45 baja "mañana", así que los
+    partidos del día en curso salían del 00:45 del día ANTERIOR. Si el
+    scheduler estaba caído justo en esa ventana —pasó el día del
+    deploy— ese día se quedaba sin partidos y nada lo recuperaba.
+    Bajando también el día siguiente acá, hacen falta dos ventanas
+    perdidas seguidas para repetirlo.
     """
     log.info("Iniciando job pipeline del día (23:55)")
     try:
-        from backend.pipeline.pipeline_dia import correr_pipeline
+        from backend.pipeline.pipeline_dia import correr_pipeline, correr_pipeline_fecha
+        from datetime import timedelta
+        from backend.pipeline.config import ahora_partidos
+
         correr_pipeline()
-        log.info("Pipeline del día completado")
+        manana = (ahora_partidos() + timedelta(days=1)).date().isoformat()
+        correr_pipeline_fecha(manana)
+        log.info("Pipeline del día completado (hoy + mañana)")
     except Exception as e:
         log.error(f"Error en pipeline del día: {e}")
 

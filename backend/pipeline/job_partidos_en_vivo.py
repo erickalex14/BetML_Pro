@@ -33,6 +33,22 @@ _ESTADOS_EN_VIVO = ("1H", "HT", "2H", "ET", "P", "BT")
 def _necesita_actualizacion(partidos: list, ahora: datetime) -> bool:
     """Lógica pura (sin DB) — separada para poder testearla sin que
     partidos reales de hoy en la BD contaminen el resultado."""
+    # Día vacío: puede que sea un día sin fútbol, o puede que los
+    # fixtures nunca se hayan bajado. Hay que ir a fijarse, y esta es la
+    # ÚNICA corrida que puede recuperarlo.
+    #
+    # Bug real (13/08/2026): la agenda tiene un hueco de un día. El job
+    # de las 23:55 baja los partidos de HOY (o sea, del día que está por
+    # terminar) y el de las 00:45 los de MAÑANA. Los del día en curso
+    # los tendría que haber bajado el 00:45 del día anterior; si el
+    # scheduler estaba caído en esa ventana —como pasó el día del
+    # deploy— ese día queda sin partidos para siempre. Antes esta
+    # guardia devolvía False con la lista vacía, así que la red de
+    # seguridad nunca iba a buscarlos: sin partidos no hay nada que
+    # actualizar, y sin actualizar nunca hay partidos.
+    if not partidos:
+        return True
+
     for p in partidos:
         if p.estado in _ESTADOS_EN_VIVO:
             return True  # ya arrancó, seguro cambia de estado/marcador
