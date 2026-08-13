@@ -1,349 +1,222 @@
-# BetML Pro — Estado al 2026-08-12
+# BetML Pro — Estado al 2026-08-13
 
-## PRODUCCIÓN (beta 0.1.0) — YA DESPLEGADO
+App de predicciones de fútbol con ML. **Beta 0.1.0 desplegada y en uso.**
+Este doc + el grafo de graphify (`graphify-out/`) son la forma de
+retomar el proyecto sin releer el historial.
 
-**URL pública:** `https://novitec.com.ec/betml` (HTTPS, certificado ya
-existente del dominio; ruta agregada al nginx de aaPanel siguiendo el
-mismo patrón que `/sgn` y `/reportesmba`). El `proxy_pass` con barra
-final corta el prefijo, así que la API no sabe que vive bajo un subpath.
+---
 
-**Server:** 181.198.104.181 (SSH puerto 27619). Stack en
-`/home/novitecadmin/betml-stack/betml-pro`, tres contenedores:
-`betml-api` (8010), `betml-scheduler`, `betml-db` (Postgres 18,
-127.0.0.1:5434, NO expuesta a internet).
+## 1. PRODUCCIÓN — ya andando
+
+**API pública:** `https://novitec.com.ec/betml`
+**APK (mismo link siempre, se pisa al actualizar):**
+`https://novitec.com.ec/betml-apk/betml-beta-0.1.0-e15954.apk`
+
+**Server:** 181.198.104.181, SSH puerto 27619, usuario `novitecadmin`.
+Stack en `/home/novitecadmin/betml-stack/betml-pro`:
+
+| contenedor | qué es | puerto |
+|---|---|---|
+| `betml-api` | FastAPI | 0.0.0.0:8010 → 8001 |
+| `betml-scheduler` | jobs agendados | — |
+| `betml-db` | Postgres 18 | 127.0.0.1:5434 (no expuesta a internet) |
+
+El nginx de aaPanel (`/www/server/panel/vhost/nginx/novitec.com.ec.conf`)
+enruta `/betml/` al contenedor y `/betml-apk/` al APK como archivo
+estático. Mismo patrón que `/sgn` y `/reportesmba`. El `proxy_pass` con
+barra final corta el prefijo, así que la API no sabe que vive bajo un
+subpath. **Ese archivo sirve varias apps en producción**: tocarlo
+siempre con respaldo + `nginx -t` antes de recargar.
 
 ```bash
-# desplegar cambios
-BETML_SSH_HOST=... BETML_SSH_USER=... BETML_SSH_PASS=... BETML_SSH_PORT=27619 \
-  python deploy/deploy_betml.py
+# desplegar cambios (sube codigo y reconstruye contenedores)
+MSYS_NO_PATHCONV=1 BETML_SSH_HOST=181.198.104.181 BETML_SSH_PORT=27619 \
+BETML_SSH_USER=novitecadmin BETML_SSH_PASS=... \
+BETML_REMOTE_DIR=/home/novitecadmin/betml-stack/betml-pro \
+  .venv/Scripts/python.exe deploy/deploy_betml.py
 
-# trabajar en local contra la BD de producción (dejar corriendo aparte)
-python deploy/tunel_bd.py
+# desarrollar en local contra la BD de PRODUCCION (dejar corriendo aparte)
+BETML_SSH_HOST=... BETML_SSH_USER=... BETML_SSH_PASS=... BETML_SSH_PORT=27619 \
+  .venv/Scripts/python.exe deploy/tunel_bd.py
+
+# compilar APK (la URL se hornea en tiempo de build)
+cd frontend && flutter build apk --release \
+  --dart-define=API_BASE_URL=https://novitec.com.ec/betml
 ```
 
 **El scheduler corre SOLO en el server.** No levantar el local a la vez:
 comparten la misma cuota de 100 requests/día de API-Football.
 
-**Trampas que ya costaron tiempo, no repetirlas:**
-- El puerto 8001 en ese server lo usa `novitec-sgn`. BetML va en 8010.
-- `torch==2.13.0+cpu` no está en PyPI; el Dockerfile agrega el índice
-  de PyTorch.
-- La versión de Postgres del contenedor debe coincidir con la del
-  `pg_dump` local (18), si no `pg_restore` rebota el dump.
-- Postgres 18+ monta el volumen en `/var/lib/postgresql`, no en
-  `.../data`.
-- Los contenedores necesitan `TZ=America/Guayaquil`: en UTC,
-  `date.today()` adelanta el día y `schedule.at("03:00")` dispara 5
-  horas corrido.
-- Git Bash reescribe rutas `/home/...` a `C:/Program Files/Git/home/...`
+**Ojo con el túnel:** el `.env` local apunta a la BD de producción, así
+que cualquier script que corras en local **escribe en la base real**. El
+`DB_URL` local viejo quedó comentado arriba en el `.env` por si querés
+volver a trabajar aislado. El túnel además se cae bajo carga (un test
+que abre 100 conexiones seguidas lo tumba) — si ves
+`server closed the connection unexpectedly`, reinicialo.
+
+---
+
+## 2. Trampas de deploy — ya costaron tiempo, no repetirlas
+
+- El puerto **8001 lo usa `novitec-sgn`** en ese server. BetML va en 8010.
+- `torch==2.13.0+cpu` **no está en PyPI**; el Dockerfile agrega
+  `--extra-index-url https://download.pytorch.org/whl/cpu`.
+- La versión de Postgres del contenedor **debe coincidir** con la del
+  `pg_dump` local (18), si no `pg_restore` rebota el dump por versión
+  de formato.
+- Postgres **18+ monta el volumen en `/var/lib/postgresql`**, no en
+  `.../data`. Con el path viejo el contenedor arranca y se muere.
+- Los contenedores necesitan **`TZ=America/Guayaquil`**: en UTC,
+  `date.today()` adelanta el día (a las 19:00 de acá ya es mañana) y
+  `schedule.at("03:00")` dispara 5 horas corrido.
+- **Git Bash reescribe** rutas `/home/...` a `C:/Program Files/Git/home/...`
   — usar `MSYS_NO_PATHCONV=1` al pasar rutas remotas.
+- SFTP **no puede leer archivos de root** (los de nginx): leerlos por
+  `sudo base64` y escribirlos por `sudo tee`.
 
+---
 
-Sesión larga: backend ganó explicabilidad + tab de recomendadas; frontend
-pasó de 3 pantallas viejas a app completa (auth, redesign, todos los
-endpoints conectados). Este doc es para retomar después de `/clear` sin
-releer todo el historial.
+## 3. Agenda del scheduler
 
-## Qué hay que revisar apenas retomes
-
-1. **Nada de esta sesión está commiteado en git.** Todo lo de abajo —
-   redesign completo, auth, recomendadas, explicabilidad, fixes — sigue
-   en el working tree sin commit. Revisar `git status` y decidir cómo
-   trocear los commits antes de seguir tocando código.
-2. **Backend corre en puerto 8001** (no 8000 — hubo conflictos de puerto
-   esta sesión). Front (Flutter web) corre en puerto **5050**.
-   `--reload` de uvicorn es poco confiable en este entorno
-   (Windows + path con espacios) — solo agarró 1 de varios cambios en
-   varias pruebas. Reiniciar manualmente después de cada cambio backend:
-   ```
-   .venv\Scripts\python.exe -m uvicorn backend.api.main:app --port 8001
-   ```
-   Frontend, igual, reiniciar manual tras cada cambio:
-   ```
-   cd frontend && flutter run -d web-server --web-port=5050 --web-hostname=localhost
-   ```
-3. **Tab "Recomendadas" (GET /predicciones/recomendadas) construida y
-   verificada por script, pero el usuario todavía NO la vio corriendo en
-   la app en vivo.** Es lo primero para confirmar en cuanto retomes:
-   abrir `http://localhost:5050`, tab "Top" en el bottom nav, revisar
-   que carguen individuales/combinadas/parlays sin error. Ahora cada
-   sección viene partida en **fijas** (prob ≥ 55%, poco riesgo) y
-   **soñadoras** (cuota alta, más riesgo) — ambas siguen siendo value
-   bets con edge positivo, el corte es `UMBRAL_FIJA_PROB` en
-   `backend/api/routes/predicciones.py`.
-
-3b. **Qué se actualiza en vivo hoy** (todo verificado con datos reales):
-   - marcador/estado/**minuto**: API-Football, cada 15 min. `minuto`
-     sale de `fixture.status.elapsed`; si la API no lo manda (ligas
-     chicas/amistosos) el badge cae a mostrar "2H" y no es bug.
-   - xG, tiros, posesión, córners, y stats por jugador (goles,
-     tarjetas, **atajadas**): Sofascore, cada 15 min, solo para
-     partidos con `sofascore_id` anclado.
-   - cuotas en vivo: API-Football `/odds/live`, cada 20 min. UNA
-     llamada trae TODOS los partidos en vivo (no cuesta por fixture).
-   - **Bug arreglado en el camino**: `guardar_stats_sofascore` saltaba
-     si ya existía fila y nunca actualizaba — servía para el job diario
-     post-partido pero hacía imposible el vivo (guardaba el minuto 20 y
-     nunca más). Ahora es upsert, igual que `guardar_jugadores`.
-4. **RESUELTO (2026-08-12 tarde): el endpoint de Sofascore por fecha.**
-   El bueno es `/unique-tournament/{id}/scheduled-events/{fecha}`,
-   sacado inspeccionando el tráfico real de sofascore.com con el
-   browser (NO adivinando rutas). Los que NO sirven, ya probados:
-   `/sport/football/scheduled-events/{fecha}` da 404 en `api.` y en
-   `www.`, y `/events/next/` también 404. Con esto el anclaje de
-   `sofascore_id` pasó de **0/33 a 16/33** partidos del día.
-   Lo que falta para llegar a 33/33: las fases de clasificación
-   (Conference/Sudamericana) viven bajo OTRO `unique-tournament` id que
-   no está mapeado, y los amistosos están repartidos en varios torneos
-   además de "Club Friendly Games" (853). El descubridor está a mano:
-   `/sport/football/scheduled-tournaments/{fecha}/page/{n}` lista todos
-   los torneos con partidos ese día (así se encontraron 465 = UEFA
-   Super Cup y 853).
-5. **Graphify actualizado — YA TERMINÓ (solo AST, sin LLM).** 1479
-   nodos, 2620 edges, 95 comunidades (era 846/1572/71 al cierre de la
-   sesión anterior). `graphify-out/graph.json` al día con todo el código
-   nuevo/modificado de hoy. Nota: el `graphify` CLI global (`~/.local/bin`)
-   no tenía el intérprete resuelto (`.graphify_python` faltaba) —
-   se reinstaló `graphifyy` sobre
-   `C:\Users\USER\AppData\Local\Programs\Python\Python311\python`.
-   Si vuelve a faltar, reinstalar con
-   `python -m pip install --upgrade graphifyy`.
-
-## Qué se hizo esta sesión (resumen denso)
-
-### Backend — ML / explicabilidad
-- **Ensemble pondera por accuracy real**, no fijo — `_peso_modelo()` en
-  `backend/models/ensemble.py`, umbral `MIN_MUESTRAS_PESO=20` con
-  fallback a accuracy de validación si no hay muestras suficientes.
-  Cada modelo individual también se persiste (`mercado="1X2-{nombre}"`)
-  para que `job_cerrar_predicciones.py` los cierre igual (usa
-  `startswith("1X2")` en vez de match exacto).
-- **`backend/models/explicacion.py` (nuevo)** — generador determinístico
-  de "por qué" (sin LLM). `generar_resumen()` compara forma/xG/tiros/
-  posesión/rating por factor, `generar_resumen_h2h()` para historial
-  directo. Conectado en `prediccion_service.py` → cada predicción trae
-  `factores` y `resumen_h2h`.
-- **Jugadores**: `jugadores_montecarlo.py` simula ahora asistencias,
-  pases, duelos (antes solo tiros). `obtener_lineup_confirmada()` en
-  `features/jugadores.py` usa alineación confirmada real (si existe)
-  antes de caer al XI probable heurístico.
-
-### Backend — tab "Recomendadas" (feature nueva de hoy)
-`GET /predicciones/recomendadas?bankroll=&fraccion=&n_simulaciones=&top_individuales=`
-en `backend/api/routes/predicciones.py`. Devuelve:
-- `apuestas_individuales` — value bets sueltas, ordenadas por EV, top N.
-- `combinadas_mismo_partido` — portafolio Kelly de mercados
-  correlacionados del MISMO partido (vía Monte Carlo con escenarios).
-- `parlays_sugeridos` — combinadas 2/3/4 patas entre partidos DISTINTOS,
-  arma con el mejor mercado de cada partido candidato.
-Excluye ligas en `LIGAS_SIN_HISTORIAL_ID` (amistosos — ver abajo) porque
-sin historial real el modelo infla EV falsamente (se vio un caso real:
-365% EV falso en amistoso, por eso el filtro).
-Verificado a mano con datos reales antes de conectar el front — 2 bugs
-reales encontrados y arreglados en el camino (KeyError `_escenarios` por
-usar el montecarlo equivocado; colisión de key `selecciones` al mezclar
-dicts con `**resultado`).
-
-### Backend — reentreno diario
-`scheduler.py`: `job_reentrenar_modelos` pasó de
-`schedule.every().sunday.at("03:00")` a **`schedule.every().day.at("03:00")`**
-(pedido explícito del usuario — modelos frescos todos los días de
-madrugada, no solo domingo). También agregado `job_alineaciones()` cada
-15 min (ver amistosos/lineups abajo).
-
-### Backend — amistosos (Friendlies) visibles sin contaminar forma
-Decisión del usuario vía pregunta directa: **visibles en la lista de
-partidos, pero excluidos de todo cálculo de forma/historial**. Se agregó
-`"Friendlies": 10` y `"Friendlies Clubs": 667` a `LIGAS` en
-`pipeline/config.py`, más constante `LIGAS_SIN_HISTORIAL_ID = {10, 667}`.
-Ese set se usa como filtro (`liga_id.notin_(...)`) en las 10+ queries de
-historial en `features/calculador.py` y `features/jugadores.py` — forma,
-xG, tiros, posesión, rating, H2H, win rate, todo. Y en el filtro de
-`/recomendadas` (arriba).
-
-### Backend — alineaciones/plantillas actualizadas
-Motivo: usuario reportó jugador (Tonali) mostrado en equipo viejo
-(Newcastle) después de transferirse (Tottenham) — plantillas quedaban
-stale. Fix real, no parche:
-- `guardador_sofascore.py`: `guardar_jugadores()` pasó de "saltar si el
-  partido ya tiene alguna fila" a **UPSERT por jugador** (query por
-  `partido_id + sofascore_jugador_id`). Antes, una fila pre-partido con
-  stats=None bloqueaba para siempre la actualización post-partido con
-  stats reales — ahí estaba el stale data.
-- `backend/pipeline/sofascore/job_alineaciones.py` (nuevo) — trae
-  alineación confirmada de Sofascore para partidos que arrancan dentro
-  de 90 min. Usa `ahora_partidos()` (zona America/Guayaquil, ver abajo)
-  en vez de UTC. Auto-ancla `sofascore_id` faltante vía
-  `TEMPORADAS_HISTORICAS` + matching nombre-equipo+fecha con guardas
-  anti-duplicado (evita el `IntegrityError` de unique constraint que
-  salió en pruebas — dos partidos distintos, mismos 2 equipos, fechas
-  distintas, matcheaban al mismo evento Sofascore sin el chequeo de
-  fecha).
-  **Pendiente/roto**: el paso de "buscar próximos eventos" no funciona
-  para fixtures que aún no se jugaron fuera de ligas oficiales mapeadas
-  (ver punto 4 arriba). Se dejó documentado, no se siguió adivinando
-  endpoints.
-
-### Backend — otros bugs reales arreglados
-- `PartidoService._enriquecer()`: parámetro `con_prediccion` nunca se
-  usaba (dead param) — el Home nunca mostraba predicciones por esto.
-  Ahora sí llama `PrediccionService.predecir()` cuando `con_prediccion=True`.
-- `GET /partidos/{id}`: bypaseaba el service entero, devolvía el ORM
-  crudo (sin nombres de equipo — Flutter mostraba "Local"/"Visitante"
-  literal). Arreglado a llamar `PartidoService.get_detalle()`.
-- `prob_combinada_estimada` en analizar-captura: devolvía falso 100%
-  cuando CERO mercados se pudieron calcular (chequeaba lista no-vacía en
-  vez de "algo se calculó realmente"). Agregado flag
-  `algun_mercado_calculado` + aviso claro cuando `pred is None`.
-- Posesión formateada x100 de más (`{:.0%}` sobre valor ya 0-100).
-- Equipos duplicados en BD (dos filas "Fluminense") rompían el matching
-  de partido en el parser de imagen — ahora se pasan TODOS los
-  candidatos fuzzy-match, no solo el top-1.
-- Timezone: `datetime.utcnow()` comparado contra `Partido.fecha` (naive,
-  guardado en hora local Guayaquil, UTC-5) en `job_partidos_en_vivo.py`
-  — creado `ahora_partidos()` en `pipeline/config.py` con
-  `zoneinfo.ZoneInfo("America/Guayaquil")`.
-- Logos de equipo: `logo_url` de API-Football estaba en la respuesta y
-  sin usar — ahora se captura en `guardador.py._upsert_equipo()` y se
-  expone en `PartidoService` (`local_logo`/`visitante_logo`).
-- UEFA Super Cup (id 531) agregado a `LIGAS` — faltaba, por eso no se
-  podía predecir ese partido cuando el usuario preguntó.
-
-### Frontend — construido desde casi cero esta sesión
-Auth (JWT, secure storage), redesign completo de diseño (paleta derivada
-de los logos reales del usuario — navy/blue/lime —, NO genérica/AI-looking,
-inspirado sin copiar en Betano/SofaScore, claymorphism limitado a ≤2
-momentos por pantalla, JetBrains Mono para números/scores). Pantallas:
-login, home, detalle, análisis avanzado (Kelly por categoría, jugadores,
-Montecarlo), stats, perfil, mis-predicciones, parlay builder,
-analizar-captura (sube imagen), y la nueva recomendadas.
-- 5 tabs en bottom nav: Partidos / Top (recomendadas) / Mías / Stats / Perfil.
-- Logos de equipo reales (`TeamLogo` widget, fallback a inicial si la
-  imagen falla).
-- Entities/models/datasources/repos/usecases nuevos para: análisis de
-  imagen, parlay, kelly-mercados, predicciones-mías, guardar-mercados,
-  recomendadas — arquitectura limpia (domain/data/presentation)
-  consistente con lo que ya existía.
-- `flutter analyze` → 0 issues al cierre de la sesión.
-- `pytest tests/ -q` → 55 passed al cierre.
-
-## Arquitectura completa — qué existe y dónde
-
-### Pipeline de datos (backend/pipeline/)
-- `pipeline_dia.py` — fixtures del día (API-Football, gratis, por fecha)
-- `job_estadisticas.py` — stats API-Football de partidos ya jugados
-- `job_partidos_en_vivo.py` — polling en vivo, timezone-fixed esta sesión
-- `sofascore/job_sofascore.py` — stats Sofascore diarias (xG, corners,
-  jugadores)
-- `sofascore/job_historico_sofascore.py` — backfill histórico (23/24,
-  24/25), 96%+ cobertura
-- `sofascore/job_crear_fixtures_sofascore.py` — crea partidos nuevos
-  desde Sofascore (25/26 + Mundial 2026)
-- `sofascore/job_alineaciones.py` — **nuevo esta sesión**, alineación
-  confirmada 90 min antes del partido (ver gaps arriba)
-- `job_odds.py` — cuotas reales gratis vía `fixture_id`
-- `job_cerrar_predicciones.py` — cierra predicciones y parlays contra
-  resultado real (MLOps)
-- `job_reentrenar_modelos.py` — reentrena los 4 modelos + Dixon-Coles,
-  **ahora diario 3am** (antes semanal)
-
-### Scheduler (backend/scheduler/scheduler.py)
 ```
-23:55 → pipeline_dia (fixtures de hoy)
-00:30 → job_estadisticas          (tope 25 requests, antes 80)
-00:45 → fixtures de mañana
-01:00 → job_sofascore_diario
-01:15 → job_odds                  (tope 20 requests, antes 40)
-01:30 → job_cerrar_predicciones
-03:00 diario → job_reentrenar_modelos
-cada 15 min → job_partidos_en_vivo      (API-Football, se frena si quedan <10)
-cada 15 min → job_alineaciones          (Sofascore, gratis)
-cada 15 min → job_sofascore_en_vivo     (Sofascore, gratis)
-cada 20 min → job_odds_en_vivo          (API-Football, se frena si quedan <20)
-```
-Sigue sin estar deployado en producción 24/7 (VPS Ubuntu on-premise es
-el plan, decisión ya tomada por el usuario — falta ejecutarlo).
-
-### Presupuesto de API-Football (100 requests/día, plan Free)
-Confirmado vía `/status`. **Reset a medianoche UTC**, no Guayaquil.
-Antes NADA controlaba el total combinado entre jobs y se llegó a
-100/100 el 2026-08-12. Ahora:
-- Tabla `presupuesto_api_football` + `backend/pipeline/presupuesto.py`.
-- El contador vive DENTRO de `api_client.get()` — choke point único,
-  cuenta todo intento (éxito o error, la API cobra igual) y hace corte
-  duro al llegar a 100 (descarta la llamada). `/status` no cuenta.
-- Reparto: fijo 2 (fixtures hoy + mañana), estadísticas 25, odds
-  pre-partido 20, resto para los jobs en vivo por prioridad.
-- Sofascore NO comparte este límite (es scraping con Playwright). Por
-  eso todo lo pesado en vivo (stats, jugadores) va por Sofascore y
-  API-Football queda para marcador/estado y cuotas.
-
-### Modelos ML (backend/models/)
-- `entrenador.py`, `mlp.py`, `lstm.py`, `gnn.py`, `ensemble.py`
-  (**pondera por accuracy real ahora**, ver arriba)
-- `calibracion.py`, `montecarlo.py`, `kelly.py`, `kelly_portfolio.py`,
-  `parlay.py`, `resolver_mercado.py`, `parser_imagen.py`
-- `jugadores_montecarlo.py` — extendido (asistencias/pases/duelos)
-- `explicacion.py` — **nuevo**, explicabilidad determinística
-
-### Features (backend/features/)
-- `calculador.py`, `dataset.py`, `grafo.py` — sin cambios de fondo
-- `jugadores.py` — `obtener_lineup_confirmada()` nuevo, forma extendida
-
-### API (backend/api/) — endpoints nuevos/cambiados esta sesión
-- `GET /predicciones/recomendadas` — **nuevo**, la tab del pedido de hoy
-- `GET /predicciones/mias` — **nuevo**, historial de predicciones
-  guardadas (filtro por estado)
-- `POST /predicciones/{id}/guardar-mercados` — **nuevo**, guarda
-  mercados elegidos como Predicciones trackeadas
-- `GET /partidos/{id}` — **arreglado**, ahora pasa por PartidoService
-
-### DB
-Sin tablas nuevas esta sesión (las de la sesión anterior — Odds,
-Usuario, Parlay, ParlaySeleccion — siguen igual).
-
-### Tests
-`tests/` — **64 tests**, pytest. Nuevos: `test_explicacion.py`,
-`test_partido_service.py`, `test_alineaciones.py` (incluye el caso real
-"Paris Saint Germain" vs "Paris Saint-Germain"), `test_odds_en_vivo.py`,
-`test_presupuesto.py`, extendido `test_parser_imagen.py`.
-
-## Gaps conocidos, honestos, sin resolver
-1. **Nada en producción** — scheduler completo pero no deployado. Plan
-   ya decidido (VPS Ubuntu on-premise del usuario), falta ejecutar.
-2. **Anclaje de `sofascore_id` al 16/33 de los partidos del día** — ya
-   no está bloqueado (ver punto 4 arriba), pero falta mapear los ids de
-   torneo de las fases de clasificación y del resto de los amistosos.
-   Sin `sofascore_id` un partido no tiene alineación confirmada NI
-   stats en vivo.
-3. **Qualifying rounds de copas europeas** — mismo tema que el punto 2:
-   viven bajo otro `unique-tournament` id, sin mapear todavía.
-4. **`parser_imagen.py` heurístico** — cobertura real contra capturas
-   variadas de bookmakers no medida en producción.
-5. **Git: todo sin commitear** — ver punto 1 arriba.
-6. **Nada de esto se vio corriendo en la app en vivo todavía** (salvo
-   por prints/scripts de verificación manual) — falta la pasada de QA
-   visual completa en el navegador.
-
-## Cómo retomar rápido
-```bash
-# backend
-.venv\Scripts\python.exe -m uvicorn backend.api.main:app --port 8001
-
-# frontend
-cd frontend && flutter run -d web-server --web-port=5050 --web-hostname=localhost
-
-# tests
-.venv\Scripts\python.exe -m pytest tests/ -q
-flutter analyze   # desde frontend/
-
-# graphify (si vuelve a faltar el intérprete)
-python -m pip install --upgrade graphifyy
+cada 15 min → alineaciones confirmadas (Sofascore, gratis)
+cada 15 min → EN VIVO Sofascore: marcador/estado/minuto + stats + jugadores
+cada 2 h    → red de seguridad API-Football (partidos sin anclar)
+23:55 → fixtures de hoy          00:30 → estadísticas (tope 70 requests)
+00:45 → fixtures de mañana       01:00 → Sofascore diario
+01:15 → cuotas (tope 20)         01:30 → cerrar predicciones
+01:45 → guardar recomendadas del día para seguimiento
+03:00 → reentrenar los 4 modelos + Dixon-Coles + calibración de producción
 ```
 
-Preguntas abiertas para el usuario cuando retome:
-- ¿Commiteamos todo lo de hoy ya, o seguimos acumulando?
-- ¿Insistimos en encontrar el endpoint de Sofascore para próximos
-  partidos, o dejamos el auto-anchoring solo para ligas ya mapeadas?
-- ¿Hacemos la pasada de QA visual completa de la tab Recomendadas y el
-  resto del redesign antes de seguir con features nuevas?
+**Presupuesto de API-Football: 100 requests/día**, reset a medianoche
+**UTC**. Contador en la tabla `presupuesto_api_football`, dentro de
+`api_client.get()` (choke point único, con corte duro al llegar a 100).
+El vivo va por Sofascore porque no gasta cuota; API-Football quedó solo
+para lo nocturno y la red de seguridad cada 2 h (~6 requests/día).
+`job_odds_en_vivo` existe pero **no está agendado**: a 5 min pedía
+~168/día, no entra.
+
+---
+
+## 4. Cómo aprende el modelo (importante, hubo confusión)
+
+El reentreno diario aprende de **partidos terminados**, no de las
+predicciones. Un partido entra al dataset con o sin predicciones
+guardadas — el resultado ES la etiqueta. Que dos personas usen la app
+**no entrena más el modelo**.
+
+Lo que sí aportan las predicciones cerradas es la **calibración de
+producción** (`backend/models/calibracion_produccion.py`): compara la
+probabilidad declarada contra la frecuencia real de acierto. Si
+declaramos 85% y acertamos 27%, Kelly viene recomendando stakes más
+altos de lo que corresponde — y eso es plata. Se reajusta en el
+reentreno diario y sale en `/stats/modelo` como `calibracion_real`.
+Necesita 150 predicciones cerradas para activarse.
+
+Las recomendadas se guardan solas (job 01:45) y se cierran contra el
+resultado real, así que ese circuito ya está cerrado.
+
+---
+
+## 5. Bugs de correctitud encontrados (todos con test que los fija)
+
+Los tres salieron de mirar la app, no de los tests. Vale la pena
+desconfiar de números que "se ven plausibles":
+
+1. **Córners inflados.** El modelo daba 85% al Over 11.5 cuando la
+   frecuencia real en 15.689 partidos es 27.1% (la casa lo pagaba 3.80,
+   o sea tenía razón). Causa: lambda del Poisson = promedio crudo de 5
+   partidos, sin regresión a la media. Arreglo en
+   `backend/features/medias_liga.py`, con K=8 elegido midiendo sobre 323
+   partidos (sesgo −0.10, Brier 12% mejor). **Toda "fija" de córners era
+   una apuesta perdedora.**
+2. **Marcadores borrados.** `guardar_partido` pisaba el marcador que ya
+   había traído Sofascore con los nulos de API-Football (que en
+   amistosos chicos se queda en "NS" durante horas). Regla nueva: un
+   partido terminado no vuelve a "por jugarse", y `None` significa "esta
+   fuente no sabe", no "no hubo goles".
+3. **Empate en vivo al 69%.** El xG de Sofascore en un partido en curso
+   es lo ACUMULADO, y se trataba como previsión del partido completo
+   multiplicándolo otra vez por el tiempo restante. Doble descuento.
+   Ahora se extrapola el ritmo a 90 y se mezcla con la previsión
+   pre-partido pesando por minutos jugados.
+
+**PENDIENTE SIN RESOLVER — no apostar mercados de rojas.**
+`rojas_local` en `estadisticas_sofascores` promedia 0.52 por equipo y
+por partido en todos los años (2023-2026), cuando lo real ronda
+0.05-0.10. Ese campo no está guardando tarjetas rojas. Falta verificar
+contra el payload crudo de Sofascore qué es lo que trae.
+
+---
+
+## 6. Anclaje de `sofascore_id` — el cuello de botella
+
+Sin `sofascore_id` un partido **no tiene marcador en vivo, ni alineación
+confirmada, ni stats**. Cobertura hoy: **24 de 33** partidos del día.
+
+El endpoint bueno es `/unique-tournament/{id}/scheduled-events/{fecha}`
+(sacado del tráfico real de sofascore.com). Los que NO sirven, ya
+probados: `/sport/football/scheduled-events/{fecha}` da 404 y
+`/events/next/` también.
+
+El cruce es por similitud de nombre eligiendo el **mejor** candidato del
+torneo y la fecha. Hizo falta puntaje en vez de reglas rígidas porque
+las dos fuentes escriben distinto el mismo club:
+`RB Bragantino`/`Red Bull Bragantino`, `Atletico-MG`/`Atlético Mineiro`,
+`Rapid Vienna`/`SK Rapid Wien`, `FC Copenhagen`/`FC København`. Y hace
+falta **ventaja sobre el segundo candidato** porque hay equipos
+distintos que puntúan altísimo (`Independiente` vs `Independiente del
+Valle` da 1.00).
+
+Para subir la cobertura: mapear los ids de torneo que faltan
+(clasificaciones y el resto de los amistosos). El descubridor
+(`descubridor_torneos.py`) los busca solo y guarda lo que aprende en
+`liga_sofascore_torneo`, pero tiene topes (`MAX_PAGINAS=3`,
+`MAX_CANDIDATOS=8`) que recortan.
+
+---
+
+## 7. Arquitectura
+
+**Pipeline** (`backend/pipeline/`): `pipeline_dia`, `job_estadisticas`,
+`job_odds`, `job_odds_en_vivo`, `job_partidos_en_vivo`,
+`job_cerrar_predicciones`, `job_guardar_recomendadas`,
+`job_reentrenar_modelos`, `presupuesto.py`, y `sofascore/`
+(`job_sofascore`, `job_historico_sofascore`, `job_alineaciones`,
+`job_sofascore_en_vivo`, `descubridor_torneos`, `cliente` con Playwright).
+
+**Modelos** (`backend/models/`): XGBoost + MLP + LSTM + GNN combinados en
+`ensemble.py` (pondera por accuracy real). `montecarlo.py`
+(Dixon-Coles), `kelly.py`, `kelly_portfolio.py`, `parlay.py`,
+`calibracion.py`, `calibracion_produccion.py`, `explicacion.py`,
+`jugadores_montecarlo.py`, `parser_imagen.py`, `resolver_mercado.py`.
+
+**API** (`backend/api/routes/`): `partidos`, `predicciones`, `stats`,
+`auth`. Todo bajo JWT excepto `/auth/*` y `/health`.
+
+**Frontend** (`frontend/lib/`): arquitectura limpia
+(domain/data/presentation), Provider, go_router. Pantallas: login, home,
+detalle, análisis avanzado, recomendadas (fijas/soñadoras), mis
+predicciones (agrupadas por partido con escudos), stats, perfil, parlay,
+analizar-captura.
+
+**Tests:** 73, `.venv\Scripts\python.exe -m pytest tests/ -q`.
+**Frontend:** `flutter analyze` → 0 issues.
+
+---
+
+## 8. Pendientes
+
+- [ ] Verificar qué guarda realmente `rojas_local` (ver punto 5).
+- [ ] Subir cobertura de anclaje de 24/33 (ver punto 6).
+- [ ] Decidir si borrar el usuario de prueba `beta@gmail.com` de la BD
+      de producción (se creó para verificar el login).
+- [ ] Leeds vs Man United y Boise vs Sporting San José quedaron sin
+      resultado: **ninguna de las dos fuentes los publicó**. Con la red
+      de seguridad cada 2 h se llenan cuando alguna los tenga.
+- [ ] El usuario mencionó querer Sofascore cada 20 min en vez de 15
+      (hoy está en 15).
+- [ ] Nada de HTTPS interno: el APK habla HTTPS con nginx, pero el
+      contenedor escucha en 0.0.0.0:8010 sin TLS. En la red del server
+      es aceptable; si algún día se expone el puerto directo, no.
