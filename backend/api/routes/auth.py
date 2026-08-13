@@ -1,30 +1,43 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.orm import Session
 
 from backend.db.database import get_db
 from backend.db.modelos import Usuario
 from backend.core.auth import hash_password, verificar_password, crear_token
 from backend.core.deps import get_usuario_actual
+from backend.core.rate_limit import limiter
 
 router = APIRouter()
 
 
 class RegistroRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, max_length=72)
+
+    @field_validator("password")
+    @classmethod
+    def password_cabe_en_bcrypt(cls, password: str) -> str:
+        if len(password.encode("utf-8")) > 72:
+            raise ValueError("La contraseña no puede superar 72 bytes")
+        return password
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=72)
+
+    @field_validator("password")
+    @classmethod
+    def password_cabe_en_bcrypt(cls, password: str) -> str:
+        if len(password.encode("utf-8")) > 72:
+            raise ValueError("La contraseña no puede superar 72 bytes")
+        return password
 
 
 @router.post("/registro", status_code=status.HTTP_201_CREATED)
-def registro(body: RegistroRequest, db: Session = Depends(get_db)):
-    if len(body.password) < 8:
-        raise HTTPException(status_code=422, detail="La contraseña necesita al menos 8 caracteres")
-
+@limiter.limit("5/minute")
+def registro(request: Request, body: RegistroRequest, db: Session = Depends(get_db)):
     existente = db.query(Usuario).filter(Usuario.email == body.email).first()
     if existente:
         raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese email")
@@ -39,7 +52,8 @@ def registro(body: RegistroRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.email == body.email).first()
 
     # mismo mensaje de error para "no existe" y "password incorrecta" —

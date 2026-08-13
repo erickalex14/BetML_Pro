@@ -108,6 +108,36 @@ def main():
     cliente.connect(host, port=puerto, username=usuario, password=password, timeout=20)
     print("SSH conectado")
 
+    def ejecutar(cmd):
+        print(f"\n$ {cmd}")
+        _, stdout, stderr = cliente.exec_command(cmd)
+        salida = stdout.read().decode("utf-8", errors="ignore")
+        error = stderr.read().decode("utf-8", errors="ignore")
+        codigo = stdout.channel.recv_exit_status()
+        print(salida, end="")
+        if error.strip():
+            print(f"[stderr] {error.strip()}")
+        if codigo:
+            raise RuntimeError(f"Comando remoto falló ({codigo}): {cmd}")
+
+    ejecutar(
+        "docker exec betml-api python -c \"from backend.core.config import get_settings; "
+        "raise SystemExit(get_settings().jwt_secret_key == "
+        "'dev-secret-cambiar-en-produccion')\""
+    )
+
+    # Antes de sobrescribir código: dump verificado con las herramientas
+    # del mismo Postgres 18 que corre producción.
+    backup = f"{REMOTO}/backups-predeploy/betml-$(date +%Y%m%d-%H%M%S).dump"
+    ejecutar(
+        f"mkdir -p {REMOTO}/backups-predeploy && "
+        "docker exec betml-db sh -c 'pg_dump -U \"$POSTGRES_USER\" "
+        "-d \"$POSTGRES_DB\" -Fc -f /tmp/betml-predeploy.dump && "
+        "pg_restore --list /tmp/betml-predeploy.dump >/dev/null' && "
+        f"docker cp betml-db:/tmp/betml-predeploy.dump {backup}"
+    )
+    print("Backup predeploy verificado")
+
     sftp = cliente.open_sftp()
     for rel in archivos:
         destino = f"{REMOTO}/{rel.as_posix()}"
@@ -117,17 +147,13 @@ def main():
     print("Archivos subidos")
 
     comandos = [
-        f"test -f {REMOTO}/.env || echo 'FALTA {REMOTO}/.env — crealo antes de levantar'",
+        f"test -f {REMOTO}/.env",
         f"cd {REMOTO} && docker compose -f docker-compose.prod.yml up -d --build",
+        "for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8010/health && exit 0; sleep 2; done; exit 1",
         "docker ps --filter name=betml --format '{{.Names}}: {{.Status}}'",
     ]
     for cmd in comandos:
-        print(f"\n$ {cmd}")
-        _, stdout, stderr = cliente.exec_command(cmd)
-        print(stdout.read().decode("utf-8", errors="ignore"), end="")
-        err = stderr.read().decode("utf-8", errors="ignore").strip()
-        if err:
-            print(f"[stderr] {err}")
+        ejecutar(cmd)
 
     cliente.close()
     print("\nDeploy terminado")

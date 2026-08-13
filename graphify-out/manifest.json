@@ -25,19 +25,19 @@
     "semantic_hash": ""
   },
   "backend/api/routes/predicciones.py": {
-    "mtime": 1786582205.1619785,
-    "ast_hash": "60229b9659014b0a4dc78bbd436d3ce6",
+    "mtime": 1786644883.445238,
+    "ast_hash": "4686e7c70b92946dbc61a8645e6fa12b",
     "semantic_hash": ""
   },
   "backend/api/routes/stats.py": {
-    "mtime": 1786576108.2232237,
-    "ast_hash": "ba7a073737fe462c754b0a7559a9a54f",
+    "mtime": 1786646728.2214196,
+    "ast_hash": "8b098fd2fecd390922b5e3bdaa1f43e4",
     "semantic_hash": ""
   },
   "backend/core/config.py": {
-    "mtime": 1786130508.3742068,
-    "ast_hash": "b55fbc7881cfdc0fb40ce7b73310c7f6",
-    "semantic_hash": "b55fbc7881cfdc0fb40ce7b73310c7f6"
+    "mtime": 1786638499.0175753,
+    "ast_hash": "522838821fa319c9be150cd37c458ba8",
+    "semantic_hash": ""
   },
   "backend/core/dependencies.py": {
     "mtime": 1784674388.6715372,
@@ -60,8 +60,8 @@
     "semantic_hash": "46b0c0eb642e45d819aac14cb414ae71"
   },
   "backend/db/modelos.py": {
-    "mtime": 1786568336.7624507,
-    "ast_hash": "ab6c03acb1599f67389d2860122f2adf",
+    "mtime": 1786644821.0107498,
+    "ast_hash": "f964166a7e4fdc3df64d13a34faaa97b",
     "semantic_hash": ""
   },
   "backend/db/resumen_bd.py": {
@@ -105,8 +105,8 @@
     "semantic_hash": "a5e98a7cfec74f8ef368e1b06606c5ef"
   },
   "backend/models/kelly.py": {
-    "mtime": 1786555034.3208714,
-    "ast_hash": "866e32691fa42483f56efb2f1fefc52e",
+    "mtime": 1786646450.1191244,
+    "ast_hash": "9e87de52046fec442221603319edcbff",
     "semantic_hash": ""
   },
   "backend/models/montecarlo.py": {
@@ -145,8 +145,8 @@
     "semantic_hash": "6cdad0b22148a3c194846a6fee4e8f88"
   },
   "backend/pipeline/config.py": {
-    "mtime": 1786551457.5019674,
-    "ast_hash": "c48548acad898a0b115dfb1892f186a4",
+    "mtime": 1786638223.4874165,
+    "ast_hash": "2b1bd717ca64ce45222dae71cc1c7bff",
     "semantic_hash": ""
   },
   "backend/pipeline/guardador.py": {
@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "backend/pipeline/job_estadisticas.py": {
-    "mtime": 1786571452.5722282,
-    "ast_hash": "037f5bc2477aef6fde8b255afa684587",
+    "mtime": 1786633443.972441,
+    "ast_hash": "a8e413c6b73630f935e3f51b5c28ca4c",
     "semantic_hash": ""
   },
   "backend/pipeline/job_historico.py": {
@@ -180,8 +180,8 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "backend/pipeline/sofascore/cliente.py": {
-    "mtime": 1786566909.2179842,
-    "ast_hash": "4dd2fc8d91c12486d7395fc79f7dbaa9",
+    "mtime": 1786640635.0480955,
+    "ast_hash": "fb102d57f1b4e908f109ed759b31977d",
     "semantic_hash": ""
   },
   "backend/pipeline/sofascore/correr_historico_completo.py": {
@@ -240,8 +240,8 @@
     "semantic_hash": "f4944341a25ef259ec9335f1c8e30366"
   },
   "backend/repositories/prediccion_repo.py": {
-    "mtime": 1786488613.1125798,
-    "ast_hash": "08719a14973594aa7fb7cd995cef5951",
+    "mtime": 1786644837.3657422,
+    "ast_hash": "38dd491f71271dc42be01bf24b3a4ae7",
     "semantic_hash": ""
   },
   "backend/scheduler/__init__.py": {
@@ -250,8 +250,8 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "backend/scheduler/scheduler.py": {
-    "mtime": 1786583965.1100523,
-    "ast_hash": "1e55f7ffadf9772549162b0bb07bcc6a",
+    "mtime": 1786636386.6722069,
+    "ast_hash": "aecebe069be36022edda9b55a4734134",
     "semantic_hash": ""
   },
   "backend/services/__init__.py": {
@@ -265,8 +265,8 @@
     "semantic_hash": ""
   },
   "backend/services/partido_service.py": {
-    "mtime": 1786555252.7576075,
-    "ast_hash": "b8c3976ff05f8db7d21740191db3d6d1",
+    "mtime": 1786638254.7043624,
+    "ast_hash": "dd540ac462cb33006bd04ffe50ba037e",
     "semantic_hash": ""
   },
   "backend/services/prediccion_service.py": {
@@ -350,8 +350,8 @@
     "semantic_hash": ""
   },
   "frontend/lib/data/models/partido_model.dart": {
-    "mtime": 1786584633.5582457,
-    "ast_hash": "f9e15dd053a013582adf6f018eda2bbe",
+    "mtime": 1786638262.4337642,
+    "ast_hash": "6351104737975c968d83cde3b834074a",
     "semantic_hash": ""
   },
   "frontend/lib/data/repositories/partido_repo_impl.dart": {
@@ -525,9 +525,9 @@
     "semantic_hash": ""
   },
   "backend/pipeline/sofascore/equipos.py": {
-    "mtime": 1786033402.9695086,
-    "ast_hash": "dcb6452bc82c25068228ea2db2cc2443",
-    "semantic_hash": "dcb6452bc82c25068228ea2db2cc2443"
+    "mtime": 1786641436.894472,
+    "ast_hash": "045a0a36f99cd65a2e33a466fecfc42f",
+    "semantic_hash": ""
   },
   "backend/pipeline/sofascore/job_crear_fixtures_sofascore.py": {
     "mtime": 1786034539.6305003,
@@ -565,8 +565,8 @@
     "semantic_hash": ""
   },
   "backend/pipeline/job_partidos_en_vivo.py": {
-    "mtime": 1786561024.3949568,
-    "ast_hash": "6fb66348d29de6970ead8d9adc367e3f",
+    "mtime": 1786632994.8223176,
+    "ast_hash": "fed32c7506fd3d449fe5ebef64f4b56a",
     "semantic_hash": ""
   },
   "backend/pipeline/sofascore/job_alineaciones.py": {
@@ -760,8 +760,8 @@
     "semantic_hash": ""
   },
   "tests/test_partidos_en_vivo.py": {
-    "mtime": 1786483134.1000955,
-    "ast_hash": "fc246324dfde11738bff56fe19fb7906",
+    "mtime": 1786633098.0366862,
+    "ast_hash": "c728c2eb003c3e5371905a17b1eea067",
     "semantic_hash": ""
   },
   "BetML_Pro_Informe_Tecnico_v3.md": {
@@ -770,8 +770,8 @@
     "semantic_hash": ""
   },
   "HANDOFF.md": {
-    "mtime": 1786578948.762671,
-    "ast_hash": "0adad3000ed3fdacbc17d979e4bd6564",
+    "mtime": 1786630498.129739,
+    "ast_hash": "a30f52f22386bd6a42342d9e767552e7",
     "semantic_hash": ""
   },
   "backend/Docs.md": {
@@ -1025,13 +1025,13 @@
     "semantic_hash": ""
   },
   "backend/models/calibracion_produccion.py": {
-    "mtime": 1786576076.2988908,
-    "ast_hash": "71bf26de0fec97215c14434920c7667f",
+    "mtime": 1786646825.9223092,
+    "ast_hash": "104e0e24915df526f45424e83c3a8cbd",
     "semantic_hash": ""
   },
   "backend/pipeline/job_guardar_recomendadas.py": {
-    "mtime": 1786580947.3735304,
-    "ast_hash": "5664ea6ae71154b5e2fc1f80ee61e081",
+    "mtime": 1786644898.9398873,
+    "ast_hash": "b1813df30af404ac42ee777cbf0f7790",
     "semantic_hash": ""
   },
   "backend/pipeline/job_odds_en_vivo.py": {
@@ -1097,6 +1097,61 @@
   "docker-compose.prod.yml": {
     "mtime": 1786578303.6759253,
     "ast_hash": "6678c24180a9046912a82402d8333767",
+    "semantic_hash": ""
+  },
+  "backend/pipeline/odds/__init__.py": {
+    "mtime": 1786636318.084923,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "backend/pipeline/odds/odds_api_io.py": {
+    "mtime": 1786637884.0206745,
+    "ast_hash": "cefd9ec0663cc9c0ea2cbd85fe7f068d",
+    "semantic_hash": ""
+  },
+  "backend/pipeline/odds/orquestador.py": {
+    "mtime": 1786637898.6782298,
+    "ast_hash": "5423944f0dba35a0f2a5f21d00c7d0a3",
+    "semantic_hash": ""
+  },
+  "backend/pipeline/odds/the_odds_api.py": {
+    "mtime": 1786636285.9609022,
+    "ast_hash": "3296c67e1c1f59e04d39c89255ba652e",
+    "semantic_hash": ""
+  },
+  "backend/pipeline/sofascore/fusionar_equipos.py": {
+    "mtime": 1786641461.6587615,
+    "ast_hash": "a520b642c095574838437f960084c3e6",
+    "semantic_hash": ""
+  },
+  "backend/pipeline/sofascore/job_odds_sofascore.py": {
+    "mtime": 1786634854.7893825,
+    "ast_hash": "6b3c87255795dce1c283034ede478ef1",
+    "semantic_hash": ""
+  },
+  "tests/test_calibracion_produccion.py": {
+    "mtime": 1786646848.1787157,
+    "ast_hash": "28ed91bb0a8970fa06fe70ace0ee8996",
+    "semantic_hash": ""
+  },
+  "tests/test_odds_api_io.py": {
+    "mtime": 1786637918.4247568,
+    "ast_hash": "21859a9fdcab1daa89207c75fb7d927c",
+    "semantic_hash": ""
+  },
+  "tests/test_odds_sofascore.py": {
+    "mtime": 1786634874.4470124,
+    "ast_hash": "4c3d4d1988e9118ddb4e7a1392143dd6",
+    "semantic_hash": ""
+  },
+  "tests/test_predicciones_por_usuario.py": {
+    "mtime": 1786645222.908664,
+    "ast_hash": "333ce574ae744ae505afe73221d894f1",
+    "semantic_hash": ""
+  },
+  "tests/test_the_odds_api.py": {
+    "mtime": 1786636318.112891,
+    "ast_hash": "66271495e8c877d073edfe191d9a9284",
     "semantic_hash": ""
   }
 }

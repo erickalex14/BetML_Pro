@@ -17,6 +17,14 @@ from backend.api.routes.auth import registro, login, RegistroRequest, LoginReque
 EMAIL_TEST = "pytest-caveman@test.com"
 
 
+def _registro(body, db):
+    return registro.__wrapped__(None, body, db)
+
+
+def _login(body, db):
+    return login.__wrapped__(None, body, db)
+
+
 @pytest.fixture
 def db():
     session = SessionLocal()
@@ -47,25 +55,25 @@ def test_token_invalido_rechazado():
 
 
 def test_registro_login_flujo_completo(db):
-    r = registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
+    r = _registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
     assert "access_token" in r
 
     usuario_db = db.query(Usuario).filter(Usuario.email == EMAIL_TEST).first()
     assert usuario_db.password_hash != "claveSegura123"
 
-    r2 = login(LoginRequest(email=EMAIL_TEST, password="claveSegura123"), db)
+    r2 = _login(LoginRequest(email=EMAIL_TEST, password="claveSegura123"), db)
     assert "access_token" in r2
 
 
 def test_login_password_incorrecta_da_401(db):
-    registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
+    _registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
     with pytest.raises(HTTPException) as exc:
-        login(LoginRequest(email=EMAIL_TEST, password="claveMALA"), db)
+        _login(LoginRequest(email=EMAIL_TEST, password="claveMALA"), db)
     assert exc.value.status_code == 401
 
 
 def test_get_usuario_actual_con_token_valido(db):
-    r = registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
+    r = _registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
     creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=r["access_token"])
     usuario = get_usuario_actual(creds, db)
     assert usuario.email == EMAIL_TEST

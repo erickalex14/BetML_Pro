@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from backend.db.database import get_db
 from backend.db.modelos import Usuario
@@ -8,6 +8,7 @@ from backend.core.deps import get_usuario_actual
 from backend.services.prediccion_service import PrediccionService
 from backend.models.kelly import analizar_mercados_kelly
 from backend.models.calibracion import cargar_calibracion
+from backend.core.rate_limit import limiter, usuario_o_ip
 
 router = APIRouter()
 
@@ -23,9 +24,9 @@ class SeleccionParlay(BaseModel):
 
 
 class ParlayRequest(BaseModel):
-    selecciones: list[SeleccionParlay]
-    bankroll: float = 1000.0
-    fraccion: float = 0.25
+    selecciones: list[SeleccionParlay] = Field(max_length=12)
+    bankroll: float = Field(default=1000.0, gt=0, le=10_000_000)
+    fraccion: float = Field(default=0.25, gt=0, le=1)
     guardar: bool = True  # persiste el parlay para MLOps — ver job_cerrar_predicciones.py
 
 
@@ -266,7 +267,7 @@ def kelly_partido(
 
 
 class GuardarMercadosRequest(BaseModel):
-    claves: list[str]  # mismas claves de "Todos los mercados" (sin el prefijo odds_)
+    claves: list[str] = Field(max_length=50)  # mismas claves de "Todos los mercados"
 
 
 @router.post("/{partido_id}/guardar-mercados")
@@ -502,7 +503,13 @@ def kelly_portafolio_partido(
 
 
 @router.post("/combinada")
-def apuesta_combinada(body: ParlayRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute", key_func=usuario_o_ip)
+def apuesta_combinada(
+    request: Request,
+    body: ParlayRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
     """
     Apuesta combinada (parlay/acumulada) — varias selecciones de
     partidos DISTINTOS en una sola apuesta, asumiendo independencia
@@ -578,6 +585,7 @@ def apuesta_combinada(body: ParlayRequest, db: Session = Depends(get_db)):
     if body.guardar and "error" not in resultado:
         from backend.db.modelos import Parlay, ParlaySeleccion
         parlay = Parlay(
+            usuario_id=usuario.id,
             cuota_combinada=resultado["cuota_combinada"],
             prob_combinada=resultado["prob_combinada"],
             stake_pct=resultado["stake_pct"],
@@ -602,7 +610,13 @@ def apuesta_combinada(body: ParlayRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/analizar-captura")
-async def analizar_captura(imagen: UploadFile = File(...), db: Session = Depends(get_db)):
+@limiter.limit("10/minute", key_func=usuario_o_ip)
+async def analizar_captura(
+    request: Request,
+    imagen: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_actual),
+):
     """
     Subís una captura de pantalla de un parley/bet builder — el sistema
     lee equipos y mercados (OCR local, gratis, sin API externa — ver
@@ -620,10 +634,27 @@ async def analizar_captura(imagen: UploadFile = File(...), db: Session = Depends
     from backend.models.odds_service import obtener_mejores_odds
     from backend.services.prediccion_service import PrediccionService
 
-    contenido = await imagen.read()
-    with tempfile.NamedTemporaryFile(suffix=Path(imagen.filename or "img.png").suffix, delete=False) as tmp:
-        tmp.write(contenido)
+    sufijos = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+    }
+    if imagen.content_type not in sufijos:
+        raise HTTPException(status_code=415, detail="Formato no permitido: usá PNG, JPEG o WEBP")
+
+    total = 0
+    excede_tope = False
+    with tempfile.NamedTemporaryFile(suffix=sufijos[imagen.content_type], delete=False) as tmp:
+        while bloque := await imagen.read(1024 * 1024):
+            total += len(bloque)
+            if total > 5 * 1024 * 1024:
+                excede_tope = True
+                break
+            tmp.write(bloque)
         ruta_tmp = tmp.name
+    if excede_tope:
+        Path(ruta_tmp).unlink(missing_ok=True)
+        raise HTTPException(status_code=413, detail="La imagen supera 5 MB")
 
     try:
         analisis = analizar_captura_parley(db, ruta_tmp)

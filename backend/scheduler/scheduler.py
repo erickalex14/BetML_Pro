@@ -31,6 +31,16 @@ def job_reentrenar_modelos():
         log.error(f"Error en reentrenamiento diario: {e}")
 
 
+def job_backup():
+    log.info("Iniciando backup diario (04:30)")
+    try:
+        from backend.pipeline.job_backup import correr_backup
+        archivo = correr_backup()
+        log.info(f"Backup diario verificado: {archivo}")
+    except Exception as e:
+        log.error(f"Error en backup diario: {e}")
+
+
 def job_pipeline_dia():
     """
     23:55 — Cierra el día que termina Y baja los partidos del que
@@ -256,6 +266,7 @@ def iniciar_scheduler():
     log.info("  01:30 → MLOps: cerrar predicciones vs resultado real")
     log.info("  01:45 → Guardar recomendadas del día para seguimiento")
     log.info("  03:00 (diario) → Reentrenar los 4 modelos + Dixon-Coles")
+    log.info("  04:30 (diario) → Backup PostgreSQL verificado")
     log.info("=" * 55)
 
     # El vivo lo lleva Sofascore (gratis). API-Football queda como RED DE
@@ -276,6 +287,7 @@ def iniciar_scheduler():
     schedule.every().day.at("01:30").do(job_cerrar_predicciones)
     schedule.every().day.at("01:45").do(job_guardar_recomendadas)
     schedule.every().day.at("03:00").do(job_reentrenar_modelos)
+    schedule.every().day.at("04:30").do(job_backup)
 
     while True:
         schedule.run_pending()
