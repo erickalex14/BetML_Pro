@@ -14,6 +14,10 @@ class ApuestaIndividual {
   final double ev;
   final double edge;
   final double stakePct;
+  /// null = todavía sin resolver. Se llena cuando el partido termina y
+  /// job_cerrar_predicciones la cierra contra el resultado real.
+  final bool? acerto;
+  final String? estadoPartido;
 
   const ApuestaIndividual({
     required this.partidoId,
@@ -26,7 +30,12 @@ class ApuestaIndividual {
     required this.ev,
     required this.edge,
     required this.stakePct,
+    this.acerto,
+    this.estadoPartido,
   });
+
+  bool get resuelta => acerto != null;
+  bool get enJuego => ['1H', 'HT', '2H', 'ET'].contains(estadoPartido);
 
   String get porQue =>
       'Probabilidad del modelo ${(probabilidad * 100).toStringAsFixed(0)}% '

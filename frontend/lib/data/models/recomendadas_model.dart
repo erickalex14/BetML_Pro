@@ -12,6 +12,8 @@ class ApuestaIndividualModel extends ApuestaIndividual {
     required super.ev,
     required super.edge,
     required super.stakePct,
+    super.acerto,
+    super.estadoPartido,
   });
 
   factory ApuestaIndividualModel.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,8 @@ class ApuestaIndividualModel extends ApuestaIndividual {
       ev: (json['ev'] ?? 0.0).toDouble(),
       edge: (json['edge'] ?? 0.0).toDouble(),
       stakePct: (json['stake_pct'] ?? 0.0).toDouble(),
+      acerto: json['acerto'] as bool?,
+      estadoPartido: json['estado_partido'] as String?,
     );
   }
 }

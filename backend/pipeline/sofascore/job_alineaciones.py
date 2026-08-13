@@ -34,6 +34,7 @@ la ventana y todavía sin alineación confirmada guardada.
 import logging
 import unicodedata
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from backend.db.database import SessionLocal
 from backend.db.modelos import Partido, Equipo, EstadisticaJugador
 from backend.pipeline.config import ahora_partidos
@@ -129,21 +130,62 @@ def _tokens_equipo(nombre: str) -> set:
     }
 
 
-def _nombre_coincide(a: str, b: str) -> bool:
-    """True si los dos nombres son del mismo equipo.
+def _similitud(a: str, b: str) -> float:
+    """Qué tan probable es que los dos nombres sean el mismo equipo (0-1).
 
-    Compara CONJUNTOS de palabras, no substrings: las dos fuentes meten
-    palabras distintas en el medio y el substring falla aunque el equipo
-    sea obviamente el mismo. Casos reales que quedaban sin anclar el
-    2026-08-12: "Bayer Leverkusen" vs "Bayer 04 Leverkusen" y
-    "Deportivo La Coruna" vs "Deportivo de A Coruña".
+    Puntaje en vez de sí/no porque las dos fuentes escriben el mismo
+    club de formas que ninguna regla rígida cubre. Casos reales que
+    quedaron sin anclar el 2026-08-12, todos el mismo equipo:
+      "RB Bragantino"       / "Red Bull Bragantino"   (abreviatura)
+      "Atletico-MG"         / "Atlético Mineiro"      (abreviatura)
+      "Atletico Torque"     / "Montevideo City Torque" (renombre parcial)
+      "Bayer Leverkusen"    / "Bayer 04 Leverkusen"   (palabra extra)
+      "Paris Saint Germain" / "Paris Saint-Germain"   (puntuación)
 
-    Acepta si un conjunto está contenido en el otro — no exige igualdad,
-    porque una fuente suele ser más verbosa que la otra."""
+    Combina dos señales y se queda con la más favorable: parecido de
+    texto (aguanta abreviaturas) y solapamiento de palabras (aguanta
+    palabras extra o en otro orden). Quien decide es _intentar_match,
+    que compara TODOS los eventos del día de ese torneo y se queda con
+    el mejor — un puntaje alto solo no alcanza, tiene que ser el mejor
+    y superar el umbral."""
+    na, nb = _normalizar(a), _normalizar(b)
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+
+    texto = SequenceMatcher(None, na, nb).ratio()
+
     ta, tb = _tokens_equipo(a), _tokens_equipo(b)
-    if not ta or not tb:
-        return False
-    return ta <= tb or tb <= ta
+    if ta and tb:
+        comunes = ta & tb
+        # sobre el conjunto más chico: "Tigre" contra "Tigre de Buenos
+        # Aires" tiene que dar 1, no penalizar por ser mas corto
+        palabras = len(comunes) / min(len(ta), len(tb))
+    else:
+        palabras = 0.0
+
+    return max(texto, palabras)
+
+
+# Un puntaje alto no alcanza para aceptar: hay pares de equipos
+# distintos que puntúan alto ("Independiente" contra "Independiente del
+# Valle" da 1.00, "Atletico Madrid" contra "Atletico Mineiro" 0.71).
+# Por eso se aceptan dos caminos:
+#   - puntaje muy alto (casi seguro el mismo equipo), o
+#   - puntaje decente Y clara ventaja sobre el segundo mejor candidato
+#     del mismo torneo y fecha: si hay UN solo partido parecido ese día,
+#     es ese, aunque el nombre esté escrito muy distinto ("Atletico
+#     Torque" contra "Montevideo City Torque", que puntúa apenas 0.54).
+UMBRAL_SIMILITUD = 0.78
+UMBRAL_CON_VENTAJA = 0.45
+VENTAJA_MINIMA = 0.15
+
+
+def _nombre_coincide(a: str, b: str) -> bool:
+    """Solo para casos claros (tests y uso puntual). El anclaje real usa
+    _intentar_match, que además compara contra el resto de candidatos."""
+    return _similitud(a, b) >= UMBRAL_SIMILITUD
 
 
 def _intentar_match(db, partido, eventos: list, ya_usados: set) -> bool:
@@ -154,6 +196,8 @@ def _intentar_match(db, partido, eventos: list, ya_usados: set) -> bool:
     if not local or not visit:
         return False
 
+    mejor, mejor_puntaje, mejor_nombres = None, 0.0, ("", "")
+    segundo_puntaje = 0.0
     for evento in eventos:
         sofascore_id = evento.get("id")
         if not sofascore_id or sofascore_id in ya_usados:
@@ -172,18 +216,36 @@ def _intentar_match(db, partido, eventos: list, ya_usados: set) -> bool:
 
         home = evento.get("homeTeam", {}).get("name", "")
         away = evento.get("awayTeam", {}).get("name", "")
-        if _nombre_coincide(local.nombre, home) and _nombre_coincide(visit.nombre, away):
-            # guard final: puede que otro Partido YA guardado (no solo
-            # los de esta corrida) tenga este id de una corrida anterior
-            # — sofascore_id es UNIQUE, un duplicado acá tira
-            # IntegrityError y aborta el commit de todo el lote
-            if db.query(Partido).filter(Partido.sofascore_id == sofascore_id).first():
-                continue
-            partido.sofascore_id = sofascore_id
-            ya_usados.add(sofascore_id)
-            log.info(f"sofascore_id anclado — partido {partido.id} ({local.nombre} vs {visit.nombre})")
-            return True
-    return False
+        # el peor de los dos lados manda: un nombre clavado y el otro
+        # que no pega es un partido distinto, no una coincidencia a medias
+        puntaje = min(_similitud(local.nombre, home), _similitud(visit.nombre, away))
+        if puntaje > mejor_puntaje:
+            segundo_puntaje = mejor_puntaje
+            mejor, mejor_puntaje, mejor_nombres = sofascore_id, puntaje, (home, away)
+        elif puntaje > segundo_puntaje:
+            segundo_puntaje = puntaje
+
+    if mejor is None:
+        return False
+    claro = mejor_puntaje >= UMBRAL_SIMILITUD
+    unico = (mejor_puntaje >= UMBRAL_CON_VENTAJA
+             and (mejor_puntaje - segundo_puntaje) >= VENTAJA_MINIMA)
+    if not (claro or unico):
+        return False
+
+    # guard final: puede que otro Partido YA guardado (no solo los de
+    # esta corrida) tenga este id de una corrida anterior — sofascore_id
+    # es UNIQUE, un duplicado acá tira IntegrityError y aborta el commit
+    # de todo el lote
+    if db.query(Partido).filter(Partido.sofascore_id == mejor).first():
+        return False
+
+    partido.sofascore_id = mejor
+    ya_usados.add(mejor)
+    log.info(f"sofascore_id anclado — partido {partido.id} "
+             f"({local.nombre} vs {visit.nombre} -> {mejor_nombres[0]} vs {mejor_nombres[1]}, "
+             f"puntaje {mejor_puntaje:.2f})")
+    return True
 
 
 def _anclar_sofascore_ids(db, cliente, partidos: list) -> None:

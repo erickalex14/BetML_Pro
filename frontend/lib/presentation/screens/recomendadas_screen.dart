@@ -135,16 +135,26 @@ class _IndividualesTab extends StatelessWidget {
     if (fijas.isEmpty && sonadoras.isEmpty) {
       return Center(child: Text('Sin value bets hoy', style: TextStyle(color: c.textSecond)));
     }
-    Widget tarjeta(ApuestaIndividual a, Color acento) => InkWell(
-          onTap: () => context.go('/partido/${a.partidoId}'),
-          borderRadius: BorderRadius.circular(13),
+    // Ya resuelta: se apaga la tarjeta y se tacha el mercado. La
+    // recomendación no desaparece a propósito — ver si acertó o falló
+    // es justamente lo que dice si vale la pena hacerle caso.
+    Widget tarjeta(ApuestaIndividual a, Color acento) {
+      final resuelta = a.resuelta;
+      final gano = a.acerto == true;
+      final colorBorde = !resuelta ? acento : (gano ? c.pitch : c.brick);
+
+      return InkWell(
+        onTap: () => context.go('/partido/${a.partidoId}'),
+        borderRadius: BorderRadius.circular(13),
+        child: Opacity(
+          opacity: resuelta ? 0.62 : 1,
           child: Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              color: c.pitchSoft,
+              color: resuelta ? c.surface : c.pitchSoft,
               borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: acento),
+              border: Border.all(color: colorBorde),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -152,21 +162,48 @@ class _IndividualesTab extends StatelessWidget {
                   child: Text('${a.local} vs ${a.visitante}',
                       style: TextStyle(fontSize: 12, color: c.textSecond)),
                 ),
+                if (a.enJuego && !resuelta) ...[
+                  Container(width: 5, height: 5, decoration: BoxDecoration(color: c.brick, shape: BoxShape.circle)),
+                  const SizedBox(width: 4),
+                ],
                 Text(a.liga, style: TextStyle(fontSize: 10.5, color: c.textMuted)),
               ]),
               const SizedBox(height: 4),
               Row(children: [
+                if (resuelta) ...[
+                  Icon(gano ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                      size: 16, color: gano ? c.pitch : c.brick),
+                  const SizedBox(width: 6),
+                ],
                 Expanded(
-                  child: Text(a.mercado, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.text)),
+                  child: Text(
+                    a.mercado,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: c.text,
+                      decoration: resuelta && !gano ? TextDecoration.lineThrough : null,
+                      decorationColor: c.brick,
+                      decorationThickness: 2,
+                    ),
+                  ),
                 ),
-                Text('${a.cuota.toStringAsFixed(2)} · ${a.stakePct.toStringAsFixed(1)}%',
-                    style: AppTheme.score(c, size: 15).copyWith(color: acento)),
+                Text(
+                  resuelta
+                      ? (gano ? 'ACERTÓ' : 'FALLÓ')
+                      : '${a.cuota.toStringAsFixed(2)} · ${a.stakePct.toStringAsFixed(1)}%',
+                  style: resuelta
+                      ? TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: gano ? c.pitch : c.brick)
+                      : AppTheme.score(c, size: 15).copyWith(color: acento),
+                ),
               ]),
               const SizedBox(height: 6),
               Text(a.porQue, style: TextStyle(fontSize: 11.5, color: c.textSecond, height: 1.35)),
             ]),
           ),
-        );
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [

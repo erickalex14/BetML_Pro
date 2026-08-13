@@ -49,10 +49,35 @@ def test_nombre_coincide_tolera_guiones_acentos_y_palabras_extra():
     assert _nombre_coincide("Deportivo La Coruna", "Deportivo de A Coruña")
     assert _nombre_coincide("Aston Villa", "Aston Villa")
     # equipos distintos de verdad NO deben matchear
-    assert not _nombre_coincide("Atletico-MG", "Atlético Mineiro")
     assert not _nombre_coincide("Arsenal", "Chelsea")
-    assert not _nombre_coincide("Real Madrid", "Real Sociedad")
     assert not _nombre_coincide("", "Arsenal")
+
+
+def test_abreviaturas_pasan_por_la_regla_de_ventaja():
+    """Abreviaturas y renombres puntúan por debajo del umbral estricto —
+    se aceptan solo cuando son el candidato claramente mejor del torneo
+    y la fecha (ver _intentar_match). Casos reales del 2026-08-12: por
+    no contemplarlos, los partidos de Sudamericana se quedaban sin
+    anclar y por lo tanto sin marcador en vivo.
+
+    (Este test nació de un error propio: el anterior daba por sentado
+    que "Atletico-MG" y "Atletico Mineiro" eran equipos distintos.)"""
+    from backend.pipeline.sofascore.job_alineaciones import (
+        _similitud, UMBRAL_CON_VENTAJA, UMBRAL_SIMILITUD)
+
+    for a, b in [("RB Bragantino", "Red Bull Bragantino"),
+                 ("Atletico-MG", "Atlético Mineiro"),
+                 ("Atletico Torque", "Montevideo City Torque"),
+                 ("Rapid Vienna", "SK Rapid Wien"),
+                 ("FC Copenhagen", "FC København")]:
+        assert _similitud(a, b) >= UMBRAL_CON_VENTAJA, f"{a} / {b}"
+
+    # y los distintos siguen por debajo de ese piso mas permisivo
+    assert _similitud("Arsenal", "Chelsea") < UMBRAL_CON_VENTAJA
+    assert _similitud("Boca Juniors", "River Plate") < UMBRAL_CON_VENTAJA
+    # ojo: estos SI puntuan alto, por eso hace falta la ventaja sobre el
+    # segundo candidato ademas del puntaje
+    assert _similitud("Independiente", "Independiente del Valle") >= UMBRAL_SIMILITUD
 
 
 def test_guardar_jugadores_actualiza_en_vez_de_saltar_si_ya_existe():

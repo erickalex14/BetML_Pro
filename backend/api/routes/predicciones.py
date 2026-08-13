@@ -749,6 +749,7 @@ def predicciones_recomendadas(
     from backend.models.parlay import calcular_parlay_kelly
     from backend.models.montecarlo import simular_partido
     from backend.pipeline.config import LIGAS_SIN_HISTORIAL_ID
+    from backend.db.modelos import Prediccion
 
     repo = PartidoRepository(db)
     # amistosos afuera: el modelo predice con la fuerza histórica REAL del
@@ -785,8 +786,22 @@ def predicciones_recomendadas(
             "liga": partido.liga.nombre,
         }
 
+        # Estado real de cada mercado si ya se guardó y cerró — es lo que
+        # permite tachar en pantalla las que fallaron en vez de mostrar
+        # eternamente la recomendación como si siguiera vigente.
+        cerradas = {
+            p.mercado: p.acerto
+            for p in db.query(Prediccion)
+                      .filter(Prediccion.partido_id == partido.id)
+                      .all()
+        }
+
         for vb in kelly["value_bets"]:
-            individuales.append({**info_partido, **vb})
+            individuales.append({
+                **info_partido, **vb,
+                "acerto": cerradas.get(vb["clave"]),   # None = todavía sin resolver
+                "estado_partido": partido.estado,
+            })
 
         if kelly["value_bets"]:
             mejor = max(kelly["value_bets"], key=lambda m: m["ev"])
