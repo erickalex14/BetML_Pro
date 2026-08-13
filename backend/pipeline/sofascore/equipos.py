@@ -77,11 +77,30 @@ def buscar_candidatos(db, nombre: str, sofascore_team_id, liga_id: int | None):
         func.word_similarity(db_nom, ss_nom),
         func.word_similarity(ss_nom, db_nom),
     )
-    return (
+    candidatos = (
         equipos_de_la_liga(db, liga_id)
         .add_columns(score.label("score"))
         .filter(score > UMBRAL_SIMILITUD)
         .order_by(score.desc())
+        .all()
+    )
+    if candidatos:
+        return candidatos
+
+    # Sin candidatos EN ESA LIGA, se busca en todas. Un club existe una
+    # sola vez aunque juegue varios torneos, y limitar la búsqueda a la
+    # liga que se está importando crea duplicados: Mirassol ya estaba
+    # cargado (había entrado por Copa Libertadores) y al importar
+    # Brasileirao 2026 no se lo encontró, así que se creó una segunda
+    # fila. Resultado: el partido de Libertadores apuntaba a la fila sin
+    # historial y el modelo lo descartaba por "historial insuficiente",
+    # mientras los 58 partidos estaban colgados de la otra.
+    return (
+        db.query(Equipo)
+        .add_columns(score.label("score"))
+        .filter(score > UMBRAL_SIMILITUD)
+        .order_by(score.desc())
+        .limit(5)
         .all()
     )
 
