@@ -213,7 +213,7 @@ def iniciar_scheduler():
     log.info("  BetML Pro — Scheduler iniciado")
     log.info("  Cada 15 min → Alineaciones confirmadas (Sofascore, gratis)")
     log.info("  Cada 15 min → EN VIVO por Sofascore: marcador/estado/minuto + stats + jugadores")
-    log.info("  (los jobs en vivo de API-Football quedaron fuera para no gastar la cuota diaria)")
+    log.info("  Cada 2 h → Red de seguridad API-Football (partidos sin anclar en Sofascore)")
     log.info("  23:55 → Partidos del día (FT)")
     log.info("  00:30 → Estadísticas de partidos (API-Football)")
     log.info("  00:45 → Fixtures del día siguiente")
@@ -224,13 +224,16 @@ def iniciar_scheduler():
     log.info("  03:00 (diario) → Reentrenar los 4 modelos + Dixon-Coles")
     log.info("=" * 55)
 
-    # En vivo: SOLO Sofascore. job_partidos_en_vivo y job_odds_en_vivo
-    # existen y andan, pero NO se agendan a propósito — gastaban la
-    # cuota de API-Football (100/día) en algo que Sofascore da gratis, y
-    # esa cuota rinde más en el job nocturno de estadísticas. Se pueden
-    # correr a mano: python -m backend.pipeline.job_odds_en_vivo
+    # El vivo lo lleva Sofascore (gratis). API-Football queda como RED DE
+    # SEGURIDAD cada 2 horas: Sofascore solo cubre partidos con
+    # sofascore_id anclado, y los que no se anclan (amistosos de ligas
+    # chicas, sobre todo) se quedaban trabados en "NS" con el horario ya
+    # pasado. Una sola llamada actualiza TODOS los partidos del día, así
+    # que 2 horas cuesta ~6 requests diarios de los 100.
+    # job_odds_en_vivo sigue fuera: ahí sí el costo no se justifica.
     schedule.every(15).minutes.do(job_alineaciones)
     schedule.every(15).minutes.do(job_sofascore_en_vivo)
+    schedule.every(2).hours.do(job_partidos_en_vivo)
     schedule.every().day.at("23:55").do(job_pipeline_dia)
     schedule.every().day.at("00:30").do(job_estadisticas)
     schedule.every().day.at("00:45").do(job_fixtures_manana)

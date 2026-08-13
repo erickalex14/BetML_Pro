@@ -5,6 +5,11 @@ from backend.db.modelos import Liga, Equipo, Partido
 
 log = logging.getLogger(__name__)
 
+# Un partido que ya terminó no vuelve a "por jugarse": si una fuente lo
+# dice, es que está desactualizada, no que el partido se des-jugó.
+_ESTADOS_FINALES = {"FT", "AET", "PEN"}
+_ESTADOS_PRELIMINARES = {"NS", "TBD"}
+
 """
 Recibe un fixture de API-Football (diccionario)
 y lo guarda en la tabla partidos.
@@ -54,13 +59,27 @@ def guardar_partido(db: Session, fixture: dict, liga_id: int, temporada: int):
     else:
         log.info(f"Actualizando: {local_nombre} vs {visit_nombre}")
 
-    #Actualiza campos que pueden cambiar
-    partido.estado          = estado
-    partido.minuto          = minuto
-    partido.goles_local     = goles_l
-    partido.goles_visitante = goles_v
-    partido.goles_local_ht  = goles_l_ht
-    partido.goles_visit_ht  = goles_v_ht
+    # Actualiza campos que pueden cambiar, SIN pisar datos buenos con
+    # peores. Hay dos fuentes escribiendo sobre la misma fila
+    # (API-Football acá, Sofascore en job_sofascore_en_vivo) y no siempre
+    # coinciden: en amistosos chicos API-Football suele quedarse en "NS"
+    # con goles en null durante horas después de terminado el partido.
+    # Sin esta guarda, la corrida de API-Football borraba el marcador que
+    # Sofascore ya había traído (caso real: Valencia U21 vs Teruel, tenía
+    # 0-1 y volvió a "NS" sin goles).
+    if not (partido.estado in _ESTADOS_FINALES and estado in _ESTADOS_PRELIMINARES):
+        partido.estado = estado
+        partido.minuto = minuto
+
+    # None significa "esta fuente no sabe", no "no hubo goles"
+    if goles_l is not None:
+        partido.goles_local = goles_l
+    if goles_v is not None:
+        partido.goles_visitante = goles_v
+    if goles_l_ht is not None:
+        partido.goles_local_ht = goles_l_ht
+    if goles_v_ht is not None:
+        partido.goles_visit_ht = goles_v_ht
     partido.actualizado_en  = datetime.utcnow()
     # db.commit() escribe los cambios en disco
     # Sin esto los cambios están solo en memoria
