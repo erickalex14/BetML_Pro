@@ -138,19 +138,24 @@ def job_partidos_en_vivo():
         log.error(f"Error chequeando partidos en vivo: {e}")
 
 
-def job_odds_sofascore():
+def job_odds_cascada():
     """
-    01:10 — cuotas de bet365 vía Sofascore, gratis. Va ANTES del job de
-    cuotas de API-Football (01:15) para que ese quede como relleno de lo
-    que Sofascore no cubrió, y no al revés.
+    01:10 — cuotas de todas las fuentes gratis, en cascada: cada una
+    pide SOLO los partidos que la anterior no pudo cubrir. Orden y
+    motivos en backend/pipeline/odds/orquestador.py.
+
+    Reemplaza a los dos jobs de cuotas que había sueltos (Sofascore y
+    API-Football): corrían siempre completos, sin mirar qué ya estaba
+    cubierto, y el de API-Football gastaba cuota en partidos que
+    Sofascore ya había cotizado gratis.
     """
-    log.info("Iniciando cuotas Sofascore (01:10)")
+    log.info("Iniciando cuotas en cascada (01:10)")
     try:
-        from backend.pipeline.sofascore.job_odds_sofascore import correr_job_odds_sofascore
-        correr_job_odds_sofascore()
-        log.info("Cuotas Sofascore completadas")
+        from backend.pipeline.odds.orquestador import correr_orquestador_odds
+        correr_orquestador_odds()
+        log.info("Cuotas en cascada completadas")
     except Exception as e:
-        log.error(f"Error en cuotas Sofascore: {e}")
+        log.error(f"Error en cuotas en cascada: {e}")
 
 
 def job_guardar_recomendadas():
@@ -247,8 +252,7 @@ def iniciar_scheduler():
     log.info("  00:30 → Estadísticas de partidos (API-Football)")
     log.info("  00:45 → Fixtures del día siguiente")
     log.info("  01:00 → Estadísticas Sofascore (xG, corners, jugadores)")
-    log.info("  01:10 → Cuotas por Sofascore (gratis, fuente principal)")
-    log.info("  01:15 → Cuotas API-Football (relleno de lo que falte)")
+    log.info("  01:10 → Cuotas en cascada (Sofascore → The Odds API → API-Football)")
     log.info("  01:30 → MLOps: cerrar predicciones vs resultado real")
     log.info("  01:45 → Guardar recomendadas del día para seguimiento")
     log.info("  03:00 (diario) → Reentrenar los 4 modelos + Dixon-Coles")
@@ -268,8 +272,7 @@ def iniciar_scheduler():
     schedule.every().day.at("00:30").do(job_estadisticas)
     schedule.every().day.at("00:45").do(job_fixtures_manana)
     schedule.every().day.at("01:00").do(job_sofascore_diario)
-    schedule.every().day.at("01:10").do(job_odds_sofascore)
-    schedule.every().day.at("01:15").do(job_odds)
+    schedule.every().day.at("01:10").do(job_odds_cascada)
     schedule.every().day.at("01:30").do(job_cerrar_predicciones)
     schedule.every().day.at("01:45").do(job_guardar_recomendadas)
     schedule.every().day.at("03:00").do(job_reentrenar_modelos)
