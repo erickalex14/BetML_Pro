@@ -1,94 +1,153 @@
-"""Calibración medida en PRODUCCIÓN — con las predicciones que ya se
-cerraron contra el resultado real (acertada/fallada).
+"""El sistema aprende de sus propios errores, por tipo de mercado.
 
-Por qué existe, además de calibracion.py: esa se ajusta sobre el split
-de test del entrenamiento (ver entrenador.py), o sea sobre partidos
-históricos con las features calculadas hacia atrás. Esta se ajusta con
-lo que el sistema realmente dijo antes de cada partido y lo que
-realmente pasó después. Es la única señal que NO se puede sacar del
-dataset: mide si cuando decimos "72%" acierta ~72 de cada 100, o si en
-la cancha ese 72% resulta ser 55%.
+La idea, en criollo: si venimos diciendo "córners over 64%" y en la
+cancha eso pasa el 10% de las veces, la próxima vez hay que declarar
+menos. Esto lo mide y lo corrige solo.
 
-Ojo con qué NO es esto: no reentrena el clasificador. Un partido
-terminado ya entra al dataset del reentreno diario con o sin
-predicciones guardadas — el resultado del partido ES la etiqueta. Lo
-que agregan las predicciones cerradas es la comparación entre
-probabilidad declarada y frecuencia observada, que es justo lo que
-importa para apostar (una probabilidad inflada arruina el cálculo de
-Kelly aunque el modelo acierte "el ganador" seguido).
+Por qué esto y no "reentrenar con las predicciones": el reentreno
+aprende de los PARTIDOS terminados, y el resultado del partido ya es la
+etiqueta — anotar aparte "predijimos 64%" no agrega información sobre
+ese partido. Lo que sí agrega, y no se puede sacar del dataset, es la
+comparación entre lo declarado y lo ocurrido: eso mide si el número que
+le pasamos a Kelly es confiable. Y ahí se juega la plata: con una
+probabilidad inflada, Kelly recomienda apostar de más.
+
+Medición real del 2026-08-13 (43 predicciones cerradas):
+    corners    declarado 64%  ->  real 10%   (-54 pp)
+    handicap   declarado 42%  ->  real  0%   (-42 pp)
+    btts       declarado 64%  ->  real 25%   (-39 pp)
+    goles      declarado 54%  ->  real 43%   (-11 pp)
+    1X2        declarado 26%  ->  real 33%   (+8 pp, iba pesimista)
+
+Tres decisiones de diseño, todas por el mismo motivo (poca muestra):
+
+1. **Por familia de mercado, no global.** El error de córners no dice
+   nada del 1X2; promediarlos escondería ambos.
+2. **Encogimiento hacia 1.** Con 10 muestras, la frecuencia observada es
+   ruidosa. El factor se mezcla con "no corregir nada", pesando por
+   cuántas muestras hay: con pocas casi no corrige, con muchas manda lo
+   observado.
+3. **Ventana móvil.** Solo se miran las últimas N cerradas de cada
+   familia. Importa porque los errores viejos pueden venir de un bug ya
+   arreglado — el desastre de córners salía de un lambda mal calculado,
+   corregido ese mismo día. Sin ventana, el sistema seguiría castigando
+   para siempre un problema que ya no existe.
 """
 import logging
+from collections import defaultdict
 from pathlib import Path
 
 import joblib
-import numpy as np
-from sklearn.isotonic import IsotonicRegression
 
 log = logging.getLogger(__name__)
 
 ROOT_DIR = Path(__file__).parent.parent.parent
 RUTA = ROOT_DIR / "data" / "models" / "calibracion_produccion.pkl"
 
-# Con pocas muestras la curva se sobreajusta al ruido y "corrige" cosas
-# que no existen. Por debajo de esto no se guarda nada y el sistema
-# sigue con la calibración del entrenamiento, que es el default sano.
-MIN_MUESTRAS = 150
+# Mínimo por familia para tocar algo. Por debajo, no corrige.
+MIN_MUESTRAS = 8
+# Fuerza del encogimiento: equivale a "k observaciones virtuales que
+# dicen que el modelo estaba bien". Con n=k el factor va a mitad de
+# camino entre no corregir y corregir del todo.
+K_ENCOGIMIENTO = 20
+# Cuántas cerradas por familia se miran (las más recientes)
+VENTANA = 200
+# Topes de seguridad: ni anular una probabilidad ni inflarla
+FACTOR_MIN, FACTOR_MAX = 0.5, 1.3
 
 
-def ajustar_desde_predicciones(db, guardar: bool = True) -> dict | None:
-    """Ajusta la curva probabilidad-declarada -> frecuencia-real sobre
-    las predicciones ya cerradas. None si todavía no hay suficientes."""
+def familia_de(mercado: str) -> str:
+    """Agrupa las claves de mercado en familias que comparten mecánica.
+    Mismo vocabulario que las claves de kelly.py."""
+    m = mercado or ""
+    if m.startswith("corners"):
+        return "corners"
+    if m.startswith("tarjetas"):
+        return "tarjetas"
+    if m.startswith("rojas"):
+        return "rojas"
+    if m.startswith("goles_equipo"):
+        return "goles_equipo"
+    if m.startswith("goles"):
+        return "goles"
+    if m.startswith("btts"):
+        return "btts"
+    if m.startswith("handicap"):
+        return "handicap"
+    if m in ("local", "empate", "visitante"):
+        return "1x2"
+    return "otros"
+
+
+def ajustar_desde_predicciones(db, guardar: bool = True) -> dict:
+    """Calcula un factor de corrección por familia de mercado."""
     from backend.db.modelos import Prediccion
 
     filas = (
-        db.query(Prediccion.probabilidad, Prediccion.acerto)
+        db.query(Prediccion)
         .filter(Prediccion.acerto.isnot(None), Prediccion.probabilidad.isnot(None))
+        .order_by(Prediccion.creado_en.desc())
+        .limit(VENTANA * 8)
         .all()
     )
-    if len(filas) < MIN_MUESTRAS:
-        log.info(f"Calibración de producción: {len(filas)} predicciones cerradas, "
-                 f"hacen falta {MIN_MUESTRAS} — se mantiene la del entrenamiento")
-        return None
 
-    probs = np.array([f[0] for f in filas], dtype=float)
-    aciertos = np.array([1 if f[1] else 0 for f in filas], dtype=int)
+    por_familia = defaultdict(list)
+    for p in filas:
+        fam = familia_de(p.mercado)
+        if len(por_familia[fam]) < VENTANA:
+            por_familia[fam].append((p.probabilidad, 1 if p.acerto else 0))
 
-    iso = IsotonicRegression(out_of_bounds="clip", y_min=0.001, y_max=0.999)
-    iso.fit(probs, aciertos)
+    factores = {}
+    for fam, datos in por_familia.items():
+        n = len(datos)
+        if n < MIN_MUESTRAS:
+            continue
+        declarado = sum(d[0] for d in datos) / n
+        real = sum(d[1] for d in datos) / n
+        if declarado <= 0:
+            continue
 
-    resultado = {
-        "curva": iso,
-        "n_muestras": len(filas),
-        "prob_media_declarada": float(probs.mean()),
-        "acierto_real": float(aciertos.mean()),
-    }
+        # Encogido hacia 1 según cuánta muestra hay: es
+        # (n*real + k*declarado) / ((n+k)*declarado)
+        factor = (n * real + K_ENCOGIMIENTO * declarado) / ((n + K_ENCOGIMIENTO) * declarado)
+        factor = max(FACTOR_MIN, min(FACTOR_MAX, factor))
 
-    log.info(f"Calibración de producción ajustada con {len(filas)} predicciones — "
-             f"probabilidad media declarada {probs.mean():.3f} vs acierto real "
-             f"{aciertos.mean():.3f}")
+        factores[fam] = {
+            "factor": round(factor, 4),
+            "n": n,
+            "declarado": round(declarado, 4),
+            "real": round(real, 4),
+        }
+        log.info(f"Calibración {fam}: declarado {declarado:.0%} vs real {real:.0%} "
+                 f"(n={n}) -> factor {factor:.3f}")
 
-    if guardar:
+    if not factores:
+        log.info(f"Calibración de producción: ninguna familia llega a "
+                 f"{MIN_MUESTRAS} predicciones cerradas todavía")
+
+    if guardar and factores:
         RUTA.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump(resultado, RUTA)
+        joblib.dump(factores, RUTA)
 
-    return resultado
+    return factores
 
 
-def cargar() -> dict | None:
+def cargar() -> dict:
     if not RUTA.exists():
-        return None
+        return {}
     try:
         return joblib.load(RUTA)
-    except Exception as e:  # archivo corrupto/incompatible: no romper la API por esto
+    except Exception as e:  # archivo corrupto: no romper la API por esto
         log.warning(f"No se pudo cargar la calibración de producción: {e}")
-        return None
+        return {}
 
 
-def probabilidad_realista(prob_declarada: float, calibracion: dict | None = None) -> float:
-    """Corrige una probabilidad con lo observado en producción. Sin datos
-    suficientes devuelve la original — nunca inventa una corrección."""
-    if calibracion is None:
-        calibracion = cargar()
-    if not calibracion or "curva" not in calibracion:
-        return prob_declarada
-    return float(calibracion["curva"].predict([prob_declarada])[0])
+def corregir(probabilidad: float, mercado: str, factores: dict | None = None) -> float:
+    """Aplica lo aprendido. Sin datos de esa familia devuelve la
+    probabilidad tal cual — nunca inventa una corrección."""
+    if factores is None:
+        factores = cargar()
+    datos = factores.get(familia_de(mercado)) if factores else None
+    if not datos:
+        return probabilidad
+    return max(0.0, min(1.0, probabilidad * datos["factor"]))

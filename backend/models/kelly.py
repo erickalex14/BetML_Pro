@@ -165,7 +165,21 @@ def analizar_mercados_kelly(
     mercados = []
     analisis = construir_lista_mercados(prediccion, montecarlo)
 
+    # Lo aprendido de nuestros propios aciertos y errores por tipo de
+    # mercado. Se carga UNA vez acá y no por mercado: son decenas de
+    # mercados por partido y el archivo es el mismo para todos.
+    from backend.models.calibracion_produccion import cargar as cargar_factores, corregir
+    factores_reales = cargar_factores()
+
     for nombre_mercado, prob, odds_key, clase_calib in analisis:
+        if prob <= 0:
+            continue
+        clave_mercado = odds_key.removeprefix("odds_")
+        # Corrige con lo observado en produccion ANTES de calcular EV y
+        # stake: si en corners venimos declarando 64% y acertando 10%,
+        # apostar sobre el 64% es apostar sobre un numero que ya sabemos
+        # que no se cumple.
+        prob = corregir(prob, clave_mercado, factores_reales)
         if prob <= 0:
             continue
         cuota = odds.get(odds_key, 0)
@@ -173,7 +187,7 @@ def analizar_mercados_kelly(
         if cuota <= 1.0:
             mercados.append({
                 "mercado":        nombre_mercado,
-                "clave":          odds_key.removeprefix("odds_"),
+                "clave":          clave_mercado,
                 "probabilidad":   round(prob, 4),
                 "cuota":          None,
                 "ev":             0.0,
@@ -199,7 +213,7 @@ def analizar_mercados_kelly(
 
         mercados.append({
             "mercado":        nombre_mercado,
-            "clave":          odds_key.removeprefix("odds_"),  # para resolver_mercado.py — ver job_cerrar_predicciones.py
+            "clave":          clave_mercado,  # para resolver_mercado.py — ver job_cerrar_predicciones.py
             "probabilidad":   round(prob, 4),
             "cuota":          round(cuota, 2),
             "ev":             kelly["ev"],
