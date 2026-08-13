@@ -115,13 +115,33 @@ class PrediccionService:
         if not pred:
             return None
 
+        # xG esperado para el partido COMPLETO según el modelo, antes de
+        # que rodara la pelota.
+        xg_local_pre = max(0.3, pred["prob_local"] * 2.5)
+        xg_visit_pre = max(0.3, pred["prob_visitante"] * 2.5)
+
+        # El xG de Sofascore en un partido EN CURSO es lo acumulado hasta
+        # el minuto actual, no una previsión del partido entero. Tratarlo
+        # como si fuera el total y encima multiplicarlo por el tiempo que
+        # falta descuenta dos veces: en Cruzeiro-Flamengo, 0-0 al 48',
+        # daba 0.18 y 0.25 de xG para los 42 minutos restantes (0.43
+        # goles esperados en casi medio tiempo) y el empate se iba a 69%.
+        # Lo correcto es extrapolar el ritmo mostrado a los 90 minutos.
         stats = partido.stats_sofascore
+        minutos_jugados = max(1, 90 - int(fraccion * 90))
         if stats and stats.xg_local and stats.xg_visitante:
-            xg_local_total = stats.xg_local
-            xg_visit_total = stats.xg_visitante
+            ritmo_local = stats.xg_local * 90 / minutos_jugados
+            ritmo_visit = stats.xg_visitante * 90 / minutos_jugados
+            # Cuanto más partido va, más vale lo que se está viendo; al
+            # principio, con 10 minutos jugados, el ritmo observado es
+            # puro ruido y manda la previsión del modelo.
+            peso_vivo = min(1.0, minutos_jugados / 90)
+            xg_local_total = peso_vivo * ritmo_local + (1 - peso_vivo) * xg_local_pre
+            xg_visit_total = peso_vivo * ritmo_visit + (1 - peso_vivo) * xg_visit_pre
+            fuente = "xG en vivo + previsión del modelo"
         else:
-            xg_local_total = max(0.3, pred["prob_local"] * 2.5)
-            xg_visit_total = max(0.3, pred["prob_visitante"] * 2.5)
+            xg_local_total, xg_visit_total = xg_local_pre, xg_visit_pre
+            fuente = "previsión del modelo"
 
         goles_local_actual = partido.goles_local or 0
         goles_visit_actual = partido.goles_visitante or 0
@@ -134,15 +154,52 @@ class PrediccionService:
             incluir_handicap=True,
         )
 
+        # Mercados que siguen vivos con el partido en curso. Las líneas de
+        # goles se leen sobre el TOTAL del partido (el simulador ya suma
+        # los goles hechos), así que "Over 2.5" con 2-0 al 60' es la
+        # probabilidad real de que caiga uno más, no una línea teórica.
+        ou = montecarlo["over_under"]
+        mercados = []
+        for linea in (0.5, 1.5, 2.5, 3.5, 4.5):
+            clave = str(linea).replace(".", "_")
+            for lado in ("over", "under"):
+                prob = ou.get(f"{lado}_{clave}")
+                if prob is None:
+                    continue
+                # las que ya se definieron solas no aportan nada
+                if prob >= 0.995 or prob <= 0.005:
+                    continue
+                mercados.append({
+                    "mercado": f"Goles {lado.capitalize()} {linea}",
+                    "clave": f"goles_{lado}_{clave}",
+                    "probabilidad": prob,
+                })
+
+        for nombre, clave in (("BTTS Sí", "btts_si"), ("BTTS No", "btts_no")):
+            prob = montecarlo.get(clave)
+            if prob is not None and 0.005 < prob < 0.995:
+                mercados.append({"mercado": nombre, "clave": clave, "probabilidad": prob})
+
+        for nombre, clave in (("Gana Local", "prob_local"), ("Empate", "prob_empate"),
+                               ("Gana Visitante", "prob_visitante")):
+            mercados.append({"mercado": nombre, "clave": clave.replace("prob_", ""),
+                             "probabilidad": montecarlo[clave]})
+
+        mercados.sort(key=lambda m: m["probabilidad"], reverse=True)
+
         return {
             "partido_id": partido.id,
             "estado": partido.estado,
             "minuto": partido.minuto,
             "marcador_actual": f"{goles_local_actual}-{goles_visit_actual}",
             "fraccion_restante": round(fraccion, 3),
+            "fuente_xg": fuente,
             "prob_local": montecarlo["prob_local"],
             "prob_empate": montecarlo["prob_empate"],
             "prob_visitante": montecarlo["prob_visitante"],
+            "goles_esperados_restantes": round(
+                (xg_local_total + xg_visit_total) * fraccion, 2),
+            "mercados": mercados,
             "montecarlo": montecarlo,
         }
 

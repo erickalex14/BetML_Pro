@@ -35,6 +35,18 @@ class Prediccion {
 // Recalculo EN VIVO — GET /predicciones/{id}/en-vivo. Distinto de
 // Prediccion (esa es pre-partido): esta ya suma el marcador actual y
 // escala el xG por el tiempo que falta.
+class MercadoEnVivo {
+  final String mercado;
+  final String clave;
+  final double probabilidad;
+
+  const MercadoEnVivo({
+    required this.mercado,
+    required this.clave,
+    required this.probabilidad,
+  });
+}
+
 class PrediccionEnVivo {
   final double probLocal;
   final double probEmpate;
@@ -42,6 +54,8 @@ class PrediccionEnVivo {
   final String marcadorActual;
   final int? minuto;
   final double fraccionRestante;
+  final double golesEsperadosRestantes;
+  final List<MercadoEnVivo> mercados;
 
   const PrediccionEnVivo({
     required this.probLocal,
@@ -50,6 +64,8 @@ class PrediccionEnVivo {
     required this.marcadorActual,
     this.minuto,
     required this.fraccionRestante,
+    this.golesEsperadosRestantes = 0,
+    this.mercados = const [],
   });
 }
 

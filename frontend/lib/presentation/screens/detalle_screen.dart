@@ -252,6 +252,46 @@ class _ProbabilidadEnVivo extends StatelessWidget {
           const SizedBox(height: 8),
           Text('Recalculado desde el marcador actual (${pred.marcadorActual}) — no la predicción pre-partido',
               style: TextStyle(fontSize: 10.5, color: c.textMuted), textAlign: TextAlign.center),
+          if (pred.golesEsperadosRestantes > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('~${pred.golesEsperadosRestantes.toStringAsFixed(2)} goles esperados en lo que queda',
+                  style: TextStyle(fontSize: 10.5, color: c.textMuted)),
+            ),
+          if (pred.mercados.isNotEmpty) ...[
+            const Divider(height: 20),
+            Text('MERCADOS AHORA', style: AppTheme.eyebrow(c)),
+            const SizedBox(height: 8),
+            // Las líneas de goles ya incluyen los goles hechos: con 2-0
+            // al 60', "Over 2.5" es la chance de que caiga uno más.
+            for (final m in pred.mercados)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Expanded(child: Text(m.mercado, style: TextStyle(fontSize: 12, color: c.textSecond))),
+                  SizedBox(
+                    width: 62,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: m.probabilidad,
+                        minHeight: 4,
+                        backgroundColor: c.bg2,
+                        valueColor: AlwaysStoppedAnimation(
+                            m.probabilidad >= 0.6 ? c.pitch : c.ledger),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 38,
+                    child: Text('${(m.probabilidad * 100).toStringAsFixed(0)}%',
+                        textAlign: TextAlign.right,
+                        style: AppTheme.score(c, size: 12).copyWith(color: c.text)),
+                  ),
+                ]),
+              ),
+          ],
         ]),
       ),
     );

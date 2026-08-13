@@ -90,6 +90,8 @@ class PrediccionEnVivoModel extends PrediccionEnVivo {
     required super.marcadorActual,
     super.minuto,
     required super.fraccionRestante,
+    super.golesEsperadosRestantes,
+    super.mercados,
   });
 
   factory PrediccionEnVivoModel.fromJson(Map<String, dynamic> json) {
@@ -100,6 +102,14 @@ class PrediccionEnVivoModel extends PrediccionEnVivo {
       marcadorActual:   json['marcador_actual'] ?? '0-0',
       minuto:           json['minuto'] as int?,
       fraccionRestante: (json['fraccion_restante'] ?? 0.0).toDouble(),
+      golesEsperadosRestantes: (json['goles_esperados_restantes'] ?? 0.0).toDouble(),
+      mercados: (json['mercados'] as List? ?? [])
+          .map((m) => MercadoEnVivo(
+                mercado: m['mercado'] ?? '',
+                clave: m['clave'] ?? '',
+                probabilidad: (m['probabilidad'] ?? 0.0).toDouble(),
+              ))
+          .toList(),
     );
   }
 }
