@@ -45,9 +45,9 @@ def medias_globales(db) -> dict:
     fila = db.execute(text("""
         select avg(corners_local), avg(corners_visitante),
                avg(amarillas_local), avg(amarillas_visitante),
-               avg(rojas_local), avg(rojas_visitante)
+               avg(rojas_local), avg(rojas_visitante),
+               avg(xg_local), avg(xg_visitante)
         from estadisticas_sofascores
-        where corners_local is not null
     """)).fetchone()
 
     def _o(valor, default):
@@ -57,6 +57,7 @@ def medias_globales(db) -> dict:
         "corners_local": _o(fila[0], 5.4), "corners_visit": _o(fila[1], 4.3),
         "amarillas_local": _o(fila[2], 1.9), "amarillas_visit": _o(fila[3], 2.1),
         "rojas_local": _o(fila[4], 0.05), "rojas_visit": _o(fila[5], 0.07),
+        "xg_local": _o(fila[6], 1.45), "xg_visit": _o(fila[7], 1.15),
     }
     log.info(f"Medias globales para encogimiento: {_cache}")
     return _cache
@@ -70,3 +71,31 @@ def encoger(promedio_equipo: float | None, n_partidos: int, media: float,
     if promedio_equipo is None or n_partidos <= 0:
         return media
     return (n_partidos * promedio_equipo + k * media) / (n_partidos + k)
+
+
+def estimar_xg_prepartido(stats_local: dict, stats_visit: dict,
+                          medias: dict) -> tuple[float, float, str]:
+    """Estima lambdas prepartido sin convertir probabilidades 1X2 en goles.
+
+    Combina ataque propio y defensa rival, ambos encogidos hacia la media
+    histórica por localía. Cuando no hay xG histórico devuelve las medias
+    reales de la base: es menos específico, pero no fabrica una señal de
+    pocos goles a partir de la probabilidad de empate.
+    """
+    n_local = int(stats_local.get("n_con_xg", 0) or 0)
+    n_visit = int(stats_visit.get("n_con_xg", 0) or 0)
+
+    ataque_local = encoger(stats_local.get("xg_favor"), n_local, medias["xg_local"])
+    defensa_visit = encoger(stats_visit.get("xg_contra"), n_visit, medias["xg_local"])
+    ataque_visit = encoger(stats_visit.get("xg_favor"), n_visit, medias["xg_visit"])
+    defensa_local = encoger(stats_local.get("xg_contra"), n_local, medias["xg_visit"])
+
+    xg_local = min(3.5, max(0.35, (ataque_local + defensa_visit) / 2))
+    xg_visit = min(3.5, max(0.35, (ataque_visit + defensa_local) / 2))
+    if n_local >= 3 and n_visit >= 3:
+        fuente = "Histórico xG prepartido con regresión a la media"
+    elif n_local > 0 or n_visit > 0:
+        fuente = "Histórico xG parcial con regresión a la media"
+    else:
+        fuente = "Media histórica global; datos de equipos insuficientes"
+    return xg_local, xg_visit, fuente

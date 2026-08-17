@@ -1,8 +1,10 @@
 import logging
-from datetime import date
+from datetime import timedelta
 from sqlalchemy.orm import Session
 from backend.db.modelos import Equipo, Liga
 from backend.repositories.partido_repo import PartidoRepository
+from backend.pipeline.config import fecha_hoy_partidos
+from backend.services.cache import guardar_cache, obtener_cache
 
 log = logging.getLogger(__name__)
 
@@ -26,9 +28,9 @@ class PartidoService:
         mismo predictor que /kelly, /montecarlo, etc. Import local para
         evitar import circular (prediccion_service no importa este
         módulo, pero mantiene el mismo patrón que el resto de las rutas)."""
-        local     = self.db.get(Equipo, partido.equipo_local_id)
-        visitante = self.db.get(Equipo, partido.equipo_visit_id)
-        liga      = self.db.get(Liga, partido.liga_id)
+        local     = partido.equipo_local
+        visitante = partido.equipo_visitante
+        liga      = partido.liga
 
         data = {
             "id":          partido.id,
@@ -77,18 +79,31 @@ class PartidoService:
 
         if con_prediccion:
             from backend.services.prediccion_service import PrediccionService
+            from backend.features.calculador import diagnosticar_historial
             data["prediccion"] = PrediccionService(self.db).predecir(partido)
+            data["disponibilidad_prediccion"] = (
+                data["prediccion"].get("diagnostico_historial")
+                if data["prediccion"]
+                else diagnosticar_historial(self.db, partido)
+            )
 
         return data
 
     def get_partidos_hoy(self) -> dict:
-        partidos  = self.partido_repo.get_por_fecha(date.today())
+        hoy = fecha_hoy_partidos()
+        clave = f"partidos_hoy:{hoy}"
+        cache = obtener_cache(self.db, clave)
+        if cache is not None:
+            return cache
+        partidos  = self.partido_repo.get_por_fecha(hoy)
         resultado = [self._enriquecer(p, con_prediccion=True) for p in partidos]
-        return {
-            "fecha":    str(date.today()),
+        respuesta = {
+            "fecha":    str(hoy),
             "partidos": resultado,
             "total":    len(resultado)
         }
+        guardar_cache(self.db, clave, respuesta, timedelta(minutes=5))
+        return respuesta
 
     def get_detalle(self, partido_id: int) -> dict | None:
         partido = self.partido_repo.get_por_id(partido_id)

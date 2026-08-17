@@ -17,6 +17,55 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 
+def clave_mercado_jugador(jugador_id: int, categoria: str, linea: str) -> str:
+    """Clave estable compartida por API, parlays y cierre de resultados."""
+    return f"jugador_{jugador_id}_{categoria}_over_{linea}"
+
+
+def mercados_jugadores_calculados(resultado: dict) -> list[dict]:
+    """Aplana la simulación a selecciones utilizables por la aplicación.
+
+    No calcula EV: hoy no existe una fuente fiable de cuotas de jugadores.
+    """
+    mercados = []
+    categorias = {
+        "tiros": "Tiros",
+        "tiros_arco": "Tiros al arco",
+        "goles": "Goles",
+        "asistencias": "Asistencias",
+        "pases": "Pases completados",
+        "entradas": "Duelos ganados",
+        "atajadas": "Atajadas",
+    }
+    for lado in ("local", "visitante"):
+        for jugador in resultado.get(lado, []):
+            jugador_id = jugador.get("sofascore_jugador_id")
+            historial = jugador.get("n_partidos_historial", 0)
+            if not jugador_id or historial < 2:
+                continue
+            for categoria, etiqueta in categorias.items():
+                if categoria == "atajadas" and jugador.get("posicion") != "G":
+                    continue
+                for linea, prob in jugador.get(categoria, {}).get("over_under", {}).items():
+                    if prob < 0.20 or prob > 0.90:
+                        continue
+                    linea_legible = linea.removeprefix("over_").replace("_", ".")
+                    mercados.append({
+                        "clave": clave_mercado_jugador(jugador_id, categoria, linea.removeprefix("over_")),
+                        "mercado": f"{jugador['nombre']} - {etiqueta} más de {linea_legible}",
+                        "jugador_id": jugador_id,
+                        "jugador": jugador["nombre"],
+                        "posicion": jugador.get("posicion"),
+                        "equipo": lado,
+                        "categoria": categoria,
+                        "linea": float(linea_legible),
+                        "probabilidad": prob,
+                        "n_partidos_historial": historial,
+                        "requiere_cuota": True,
+                    })
+    return mercados
+
+
 def simular_jugador(forma: dict, n_simulaciones: int = 10000,
                      seed: int = 42) -> dict:
     if seed is not None:

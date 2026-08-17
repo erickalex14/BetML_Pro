@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -41,6 +41,20 @@ def ahora_partidos() -> datetime:
     manda la fecha marcada como UTC y el celular la pasa a su hora
     local (ver PartidoService._enriquecer)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def fecha_hoy_partidos() -> date:
+    """Día futbolístico actual en Ecuador, independiente del TZ del proceso."""
+    return datetime.now(_TZ_PARTIDOS).date()
+
+
+def rango_utc_dia_partidos(fecha: date) -> tuple[datetime, datetime]:
+    """Límites UTC-naive para un día calendario de America/Guayaquil."""
+    inicio_local = datetime.combine(fecha, time.min, tzinfo=_TZ_PARTIDOS)
+    fin_local = inicio_local + timedelta(days=1)
+    inicio_utc = inicio_local.astimezone(timezone.utc).replace(tzinfo=None)
+    fin_utc = fin_local.astimezone(timezone.utc).replace(tzinfo=None)
+    return inicio_utc, fin_utc
 
 #ID'S DE LAS LIGAS
 

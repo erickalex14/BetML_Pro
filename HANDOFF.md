@@ -1,375 +1,309 @@
-# BetML Pro — Estado al 2026-08-13 (tarde)
+# BetML Pro — handoff operativo (2026-08-14)
 
-App de predicciones de fútbol con ML. **Beta 0.1.0 desplegada y en uso.**
-Este doc + el grafo de graphify (`graphify-out/`, 1760 nodos) son la
-forma de retomar el proyecto sin releer el historial.
+App móvil de predicciones de fútbol con ML, desplegada en producción y con APK distribuido.
+Las Fases 0–3 del plan de endurecimiento están implementadas y verificadas. La primera entrega
+del rediseño UX/UI móvil y su pulido 0.3.0 están desplegados en producción.
 
-## LO PRIMERO SI RETOMÁS AHORA
+Este documento y `graphify-out/` son la entrada para retomar el proyecto sin releer el chat.
+El plan aprobado vive en:
+`C:\Users\USER\.claude\plans\twinkling-bouncing-blum.md`.
 
-Hay un **plan aprobado y sin empezar** para login con Google y
-endurecimiento para miles de usuarios:
-`C:\Users\USER\.claude\plans\twinkling-bouncing-blum.md`
+## 1. Estado actual
 
-Va por fases, ordenadas por "qué rompe primero": red de seguridad
-(tests fuera de prod, backups, límites de Docker) → agujeros
-explotables hoy → Google auth + refresh tokens → rendimiento →
-observabilidad. Los números que lo justifican están medidos, no
-supuestos.
+### Calidad de prediccion + APK 0.4.2 (14/08/2026)
 
-**Las tres cosas más urgentes de ese plan**, por si solo hay tiempo
-para eso:
-1. `pytest` escribe en la **base de producción** (el `.env` de dev
-   apunta ahí por el túnel). Ya se insertaron usuarios de prueba sin
-   querer. Falta `tests/conftest.py`.
-2. `ParlayRequest.selecciones` no tiene tope: 50 patas = 500.000
-   simulaciones sincrónicas. Es un DoS con un solo request.
-3. Los contenedores no tienen límite de RAM y el server corre otras
-   apps de producción (`novitec-sgn`, `syserp`, `mba3-bi`).
+- Eliminado el falso "sin historial" cuando hay al menos 3 partidos
+  generales por equipo pero faltan 3 en la localia exacta: se usa fallback
+  temporal a los ultimos 10 finalizados, siempre anteriores al encuentro.
+- El fallback queda marcado como calidad `moderada` y sus probabilidades se
+  contraen 15% hacia el prior neutral; con menos de 3 generales se bloquea.
+- API expone codigo, calidad y conteos de historial; Detalle explica la causa
+  real en lugar de mostrar un mensaje generico.
+- Auditoria real: Al-Hilal Saudi FC (`sofascore_id=21895`) tiene 102 partidos
+  finalizados en produccion (51 local, 51 visita), por lo que no corresponde
+  clasificarlo como equipo sin historial.
+- Verificacion: `108 passed`, `flutter analyze` limpio, API publica sana.
+- APK: `https://novitec.com.ec/betml-apk/betml-pro-0.4.2.apk` y alias latest.
+- SHA-256: `74ec2ce4a6916c9c38e2dce079ec28d2bcc2570d94221979508b5528940b0def`.
 
----
+### Hotfix móvil 0.4.1 (14/08/2026)
 
-## 1. PRODUCCIÓN — ya andando
+- Todas las aperturas de Detalle usan `push`; las pantallas secundarias
+  tienen `PopScope` con fallback seguro para el gesto Android.
+- Radar del Home incluye carrusel horizontal de los mercados con mayor
+  probabilidad del día y explicación al tocar.
+- Filtros de Oportunidades usan el mismo lenguaje visual que ligas en Home.
+- Constructor de parlay carga bajo demanda todos los mercados con cuota de
+  cada partido, guarda el resultado y muestra probabilidad, cuota, Kelly y EV.
+- `flutter analyze` limpio, `8/8` pruebas.
+- APK: `https://novitec.com.ec/betml-apk/betml-pro-0.4.1.apk`.
+- SHA-256: `e2d3399dbe51b338748954f1cee7863907cadb44c86d3bff43feca49959f1f24`.
 
-**API pública:** `https://novitec.com.ec/betml`
-**APK (mismo link siempre, se pisa al actualizar):**
-`https://novitec.com.ec/betml-apk/betml-beta-0.1.0-e15954.apk`
+### Release móvil 0.4.0 (14/08/2026)
 
-**Server:** 181.198.104.181, SSH puerto 27619, usuario `novitecadmin`.
-Stack en `/home/novitecadmin/betml-stack/betml-pro`:
+- Política global de Atrás: tabs secundarias vuelven a Hoy; en Hoy se
+  requieren dos gestos en dos segundos para salir.
+- Oportunidades agrupadas por partido con logos, mercados desplegables,
+  filtros por liga/estado y separación FIJA/SOÑADORA.
+- Oportunidades se actualiza cada 60 segundos y al volver del segundo plano.
+- Acceso a Crear parlay desde Home y Oportunidades; acceso a análisis de
+  jugadores desde cada partido agrupado.
+- API de recomendadas añade logos, liga_id y hora sin romper consumidores.
+- Backend `106 passed`; Flutter `flutter analyze` limpio y `8/8` pruebas.
+- APK: `https://novitec.com.ec/betml-apk/betml-pro-0.4.0.apk`.
+- SHA-256: `bdac3f5a64eb9215da922e96ce09b7af9b5fe8d06909c711997e37d80d6fff86`.
+- Pendiente deliberado: persistir recomendaciones de jugador requiere cuotas
+  reales de jugador; hoy el endpoint entrega probabilidades, no EV verificable.
 
-| contenedor | qué es | puerto |
+| Fase | Estado | Resultado principal |
 |---|---|---|
-| `betml-api` | FastAPI | 0.0.0.0:8010 → 8001 |
-| `betml-scheduler` | jobs agendados | — |
-| `betml-db` | Postgres 18 | 127.0.0.1:5434 (no expuesta a internet) |
+| 0 — red de seguridad | Producción | tests aislados, backups verificados, límites Docker |
+| 1 — seguridad | Producción | rate limiting, límites de payload/cómputo, CORS/JWT endurecidos |
+| 2 — autenticación | Producción | Google Sign-In, access/refresh, rotación y logout |
+| 3 — rendimiento | Producción | índices, caché PostgreSQL, gzip, joinedload y 3 workers |
+| 4A — UX/UI móvil | Producción | navegación de 4 tabs, sistema deportivo, flujo principal y onboarding |
+| 4A.1 — pulido móvil | Producción | Atrás seguro, UTF-8 limpio y ficha profesional de jugador |
+| 4B — observabilidad | Pendiente | health real de DB, request timing, salud de jobs |
 
-El nginx de aaPanel (`/www/server/panel/vhost/nginx/novitec.com.ec.conf`)
-enruta `/betml/` al contenedor y `/betml-apk/` al APK como archivo
-estático. Mismo patrón que `/sgn` y `/reportesmba`. El `proxy_pass` con
-barra final corta el prefijo, así que la API no sabe que vive bajo un
-subpath. **Ese archivo sirve varias apps en producción**: tocarlo
-siempre con respaldo + `nginx -t` antes de recargar.
+Validación más reciente:
 
-```bash
-# desplegar cambios (sube codigo y reconstruye contenedores)
-MSYS_NO_PATHCONV=1 BETML_SSH_HOST=181.198.104.181 BETML_SSH_PORT=27619 \
-BETML_SSH_USER=novitecadmin BETML_SSH_PASS=... \
-BETML_REMOTE_DIR=/home/novitecadmin/betml-stack/betml-pro \
-  .venv/Scripts/python.exe deploy/deploy_betml.py
+- Backend: `106 passed` contra SQLite aislada.
+- Flutter: `flutter analyze` sin problemas, 7 pruebas y APK release 0.3.0 compilado.
+- APK: `https://novitec.com.ec/betml-apk/betml-pro-0.3.0.apk` y alias
+  `https://novitec.com.ec/betml-apk/betml-latest.apk` (HTTP 200, 55.535.678 bytes).
+- SHA-256: `7820bdb6f9026cf8e92648c8edde5a89d187b21df39d314f0d66b2069c3eb286`.
+- Login Google validado manualmente en el APK productivo.
+- Carga: 200 requests a `/partidos/hoy`, concurrencia 20, `200/200` HTTP 200 en 1.845 ms.
 
-# desarrollar en local contra la BD de PRODUCCION (dejar corriendo aparte)
-BETML_SSH_HOST=... BETML_SSH_USER=... BETML_SSH_PASS=... BETML_SSH_PORT=27619 \
-  .venv/Scripts/python.exe deploy/tunel_bd.py
+## 2. Producción y despliegue
 
-# compilar APK (la URL se hornea en tiempo de build)
-cd frontend && flutter build apk --release \
-  --dart-define=API_BASE_URL=https://novitec.com.ec/betml
+- API: `https://novitec.com.ec/betml`
+- APK estable actual: `https://novitec.com.ec/betml-apk/betml-pro-0.2.0.apk`
+- APK latest: `https://novitec.com.ec/betml-apk/betml-latest.apk`
+- Servidor: `181.198.104.181`, SSH `27619`, usuario `novitecadmin`
+- Stack: `/home/novitecadmin/betml-stack/betml-pro`
+
+| Contenedor | Función | Límites |
+|---|---|---|
+| `betml-api` | FastAPI/Uvicorn, 3 workers | 2 GiB, 2 CPU |
+| `betml-scheduler` | jobs programados | 4 GiB, 2 CPU |
+| `betml-db` | PostgreSQL 18 | 2 GiB, 2 CPU |
+
+El nginx de aaPanel enruta `/betml/` a `127.0.0.1:8010` y sirve `/betml-apk/`.
+Ese archivo comparte dominio con otras apps: respaldar y ejecutar `nginx -t` antes de recargar.
+
+Despliegue:
+
+```powershell
+& '.\.venv\Scripts\python.exe' '.\deploy\deploy_betml.py'
 ```
 
-**El scheduler corre SOLO en el server.** No levantar el local a la vez:
-comparten la misma cuota de 100 requests/día de API-Football.
+`deploy_betml.py` exige credenciales por variables `BETML_SSH_*`, valida que JWT no use el
+secreto default, crea un `pg_dump` verificable en `backups-predeploy/`, sube sin `.env`,
+reconstruye y espera `/health`. Su lectura SSH combina stdout/stderr para evitar el bloqueo
+que ocurrió durante Docker Build el 14/08.
 
-**Ojo con el túnel:** el `.env` local apunta a la BD de producción, así
-que cualquier script que corras en local **escribe en la base real**. El
-`DB_URL` local viejo quedó comentado arriba en el `.env` por si querés
-volver a trabajar aislado. El túnel además se cae bajo carga (un test
-que abre 100 conexiones seguidas lo tumba) — si ves
-`server closed the connection unexpectedly`, reinicialo.
+Compilar APK:
 
----
-
-## 2. Trampas de deploy — ya costaron tiempo, no repetirlas
-
-- El puerto **8001 lo usa `novitec-sgn`** en ese server. BetML va en 8010.
-- `torch==2.13.0+cpu` **no está en PyPI**; el Dockerfile agrega
-  `--extra-index-url https://download.pytorch.org/whl/cpu`.
-- La versión de Postgres del contenedor **debe coincidir** con la del
-  `pg_dump` local (18), si no `pg_restore` rebota el dump por versión
-  de formato.
-- Postgres **18+ monta el volumen en `/var/lib/postgresql`**, no en
-  `.../data`. Con el path viejo el contenedor arranca y se muere.
-- Los contenedores necesitan **`TZ=America/Guayaquil`**: en UTC,
-  `date.today()` adelanta el día (a las 19:00 de acá ya es mañana) y
-  `schedule.at("03:00")` dispara 5 horas corrido.
-- **Git Bash reescribe** rutas `/home/...` a `C:/Program Files/Git/home/...`
-  — usar `MSYS_NO_PATHCONV=1` al pasar rutas remotas.
-- SFTP **no puede leer archivos de root** (los de nginx): leerlos por
-  `sudo base64` y escribirlos por `sudo tee`.
-- **`Partido.fecha` está en UTC**, aunque `pipeline_dia` pida los
-  fixtures con `timezone=America/Guayaquil`. Medido contra los
-  `startTimestamp` de Sofascore: 8 de 8 partidos con 0.0 h de
-  diferencia. `ahora_partidos()` devuelve UTC por eso. La app convierte
-  a hora local del celular (`fecha` va marcada con "Z" y el modelo hace
-  `.toLocal()`).
-- **El túnel a la BD se cae bajo carga** (un test que abre 100
-  conexiones lo tumba). Si ves `server closed the connection
-  unexpectedly` en local, reiniciá `deploy/tunel_bd.py`.
-- Correr scripts dentro del contenedor necesita `sys.path.insert(0,
-  "/app")`, si no `ModuleNotFoundError: backend`.
-
----
-
-## 3. Agenda del scheduler
-
-```
-cada 15 min → alineaciones confirmadas (Sofascore, gratis)
-cada 15 min → EN VIVO Sofascore: marcador/estado/minuto + stats + jugadores
-cada 2 h    → red de seguridad API-Football (partidos sin anclar)
-23:55 → fixtures de hoy Y de mañana   00:30 → estadísticas (tope 45)
-00:45 → fixtures de mañana            01:00 → Sofascore diario
-01:10 → cuotas en cascada             01:30 → cerrar predicciones
-01:45 → guardar recomendadas del día para seguimiento
-03:00 → reentrenar los 4 modelos + Dixon-Coles + calibración de producción
+```powershell
+cd frontend
+flutter build apk --release `
+  --dart-define=API_BASE_URL=https://novitec.com.ec/betml `
+  --dart-define=GOOGLE_CLIENT_ID=<web-client-id>.apps.googleusercontent.com
 ```
 
-**Presupuesto de API-Football: 100 requests/día**, reset a medianoche
-**UTC**. Contador en la tabla `presupuesto_api_football`, dentro de
-`api_client.get()` (choke point único, con corte duro al llegar a 100).
-El vivo va por Sofascore porque no gasta cuota; API-Football quedó solo
-para lo nocturno y la red de seguridad cada 2 h (~6 requests/día).
-`job_odds_en_vivo` existe pero **no está agendado**: a 5 min pedía
-~168/día, no entra.
+El APK actual conserva la firma debug del APK distribuido para permitir actualización encima.
+Antes de distribución masiva/Play Store hay que definir una clave release estable y gestionar
+la transición; cambiar la firma impide instalar encima sin desinstalar.
 
-**El job de las 23:55 baja hoy Y mañana a propósito.** Es redundante
-con el de las 00:45, pero la agenda tenía un hueco de un día entero: si
-el scheduler estaba caído en esa ventana, ese día se quedaba sin
-partidos y nada lo recuperaba (pasó el 13/08, la app mostraba "no hay
-partidos hoy"). Además `_necesita_actualizacion` devuelve True con la
-lista vacía — antes era circular: sin partidos no había nada que
-actualizar, y sin actualizar nunca había partidos.
+## 3. Red de seguridad y pruebas
 
----
+`tests/conftest.py` requiere `BETML_TEST_DB_URL`. Pytest aborta si falta o si apunta al mismo
+destino que `DB_URL`. PostgreSQL usa un schema separado; SQLite sirve para la suite rápida.
 
-## 3b. Cuotas — cascada de fuentes gratis
+```powershell
+$env:BETML_TEST_DB_URL='sqlite:///data/betml_test_local.db'
+rtk test '.\.venv\Scripts\python.exe' -m pytest -q
+```
 
-`backend/pipeline/odds/orquestador.py` (01:10). Cada fuente pide **solo
-lo que la anterior no cubrió**:
+Nunca ejecutar tests con el `.env` normal dando por hecho que es local: ese archivo puede
+apuntar al túnel de producción.
 
-| Orden | Fuente | Tope | Notas |
-|---|---|---|---|
-| 1 | **Sofascore** | sin tope | `/event/{id}/odds/1/all` (bet365). Cubre amistosos. Cuotas **fraccionarias** ("1/5" = 1.20) y la línea va en `choiceGroup` |
-| 2 | **The Odds API** | 500/mes | 1 request = liga entera. **El costo es mercados × regiones**, no 1: con 2 mercados son ~8 ligas/día |
-| 3 | **odds-api.io** | 500/día | `/v3/events` trae ~4600 partidos. **Betano tiene prioridad sobre Bet365** porque es donde apuesta el usuario |
-| 4 | API-Football | 100/día | último recurso, se salta si quedan <40 |
+Backups:
 
-Las keys viven en el `.env` (`THE_ODDS_API_KEY`, `ODDS_API_IO_KEY`) y
-están declaradas en `core/config.py` — Settings **rechaza** claves del
-`.env` que no conozca.
+- predeploy: `backups-predeploy/betml-YYYYMMDD-HHMMSS.dump`
+- scheduler diario: 04:30, `backend/pipeline/job_backup.py`
+- `pg_dump`/`pg_restore` son versión 18 y el dump se valida antes de aceptarse.
 
-**Pendiente real:** odds-api.io cotizó 0 partidos porque el cruce de
-nombres es muy estricto (`KuPS` vs `Kuopion Palloseura` puntúa 0.36).
-Hay que aflojar el umbral o reusar la lógica de `_similitud` con la
-regla de ventaja sobre el segundo candidato.
+## 4. Autenticación y seguridad
 
----
+Google OAuth usa un cliente Android (`com.betmlpro.frontend` + SHA-1 de la firma actual) y
+un cliente Web como audiencia del backend. `GOOGLE_CLIENT_ID` vive en el `.env` remoto.
+No guardar secretos OAuth en el repo; el Client ID no es secreto.
 
-## 4. Cómo aprende el modelo (importante, hubo confusión)
+Flujo:
 
-El reentreno diario aprende de **partidos terminados**, no de las
-predicciones. Un partido entra al dataset con o sin predicciones
-guardadas — el resultado ES la etiqueta. Que dos personas usen la app
-**no entrena más el modelo**.
+- Access JWT: 15 minutos, `type=access`, `iat` y `exp`.
+- Refresh JWT: 30 días; solo se guarda SHA-256 en `sesiones_refresh`.
+- `/auth/refresh` rota el refresh. Reutilizar uno revocado invalida todas las sesiones del usuario.
+- `/auth/logout` revoca la sesión.
+- Google solo une cuentas por email cuando `email_verified=true`.
+- Usuarios Google pueden tener `password_hash=NULL`; login password responde que deben usar Google.
+- Compatibilidad temporal: JWT antiguos sin `type` siguen aceptándose como access. El APK viejo,
+  identificado por no enviar `X-BetML-Auth-Version: 2`, recibe access de 7 días hasta retirarlo.
 
-Lo que sí aportan las predicciones cerradas es la **calibración de
-producción** (`backend/models/calibracion_produccion.py`): compara la
-probabilidad declarada contra la frecuencia real de acierto **por
-familia de mercado**, y ese factor **se aplica en `analizar_mercados_kelly`
-antes de calcular EV y stake**. Ahí es donde el sistema "aprende de sus
-errores": si en córners venimos declarando 64% y acertando 10%, esos
-mercados entran a Kelly con un 28% menos de confianza.
+Seguridad Fase 1:
 
-Cuenta **todas** las predicciones cerradas, del sistema y de los
-usuarios, sin filtrar por dueño — el aislamiento entre cuentas es solo
-de visibilidad. Con 10 usuarios hay 10 veces más señal.
+- rate limit global 300/min por IP; login/registro 5/min; captura/combinada 10/min por usuario/IP;
+- parlay máximo 12 patas; límites de bankroll/fracción/mercados;
+- imágenes hasta 5 MiB, MIME validado y lectura por streaming;
+- CORS allowlist; JWT default bloquea startup en producción;
+- excepciones 500 no filtran detalles y entregan correlation ID.
 
-Medición del 13/08 (43 cerradas): corners 64%→10% (factor 0.72),
-goles 54%→43% (0.92), otros 43%→11% (0.77). Visible en `/stats/modelo`
-bajo `calibracion_real.por_mercado`.
+## 5. Rendimiento medido
 
-Tres decisiones de diseño, todas por la poca muestra: **por familia**
-(el error de córners no dice nada del 1X2), **encogido hacia 1** con
-`K_ENCOGIMIENTO=20` (8 observaciones no pueden mandar solas), y
-**ventana móvil** — importante, porque el desastre de córners venía de
-un bug ya arreglado y sin ventana el sistema lo castigaría para
-siempre.
+Fase 3 se decidió con datos de producción, no estimaciones:
 
-Las recomendadas se guardan solas (job 01:45) y se cierran contra el
-resultado real, así que ese circuito ya está cerrado.
+- Tabla `partidos`: 17.647 filas al medir.
+- Día 14/08: 36 partidos; 13 con cuotas.
+- `/recomendadas` frío antes: 1.682 ms.
+- Después: 905 ms frío y 3,6 ms caliente (~467×).
+- Consulta diaria: `Seq Scan` 1,478 ms → `Index Scan` 0,128 ms (~11,5×).
+- GZip confirmado por `content-encoding: gzip`.
 
-**Aislamiento entre usuarios** (`Prediccion.usuario_id`): con valor = la
-guardó esa persona y solo ella la ve; NULL = la generó el sistema, no se
-le muestra a nadie pero sí cuenta para las métricas. Las 58 predicciones
-previas a la columna quedaron como del sistema — no había forma de saber
-quién las hizo. **`Parlay` todavía NO tiene ese filtro** (está en la
-Fase 1 del plan).
+`cache_json` es PostgreSQL/JSONB, compartido entre workers:
 
----
+- `recomendadas:{fecha}`: TTL 30 min;
+- `partidos_hoy:{fecha}`: TTL 5 min;
+- job 01:45 precalienta recomendadas;
+- actualizaciones en vivo invalidan ambas claves.
 
-## 5. Bugs de correctitud encontrados (todos con test que los fija)
+Los parámetros no-default de `/recomendadas` omiten el caché para no devolver resultados de
+otro bankroll/fracción/número de simulaciones.
 
-Los tres salieron de mirar la app, no de los tests. Vale la pena
-desconfiar de números que "se ven plausibles":
+Índices: fecha/estado/liga/equipos de `Partido`; `partido_id` en Odds y Predicción;
+partido/equipo/jugador en EstadísticaJugador; compuestos `(equipo_local_id, fecha)` y
+`(equipo_visit_id, fecha)`. `joinedload` elimina el N+1 de partidos/equipos/liga/stats.
 
-1. **Córners inflados.** El modelo daba 85% al Over 11.5 cuando la
-   frecuencia real en 15.689 partidos es 27.1% (la casa lo pagaba 3.80,
-   o sea tenía razón). Causa: lambda del Poisson = promedio crudo de 5
-   partidos, sin regresión a la media. Arreglo en
-   `backend/features/medias_liga.py`, con K=8 elegido midiendo sobre 323
-   partidos (sesgo −0.10, Brier 12% mejor). **Toda "fija" de córners era
-   una apuesta perdedora.**
-2. **Marcadores borrados.** `guardar_partido` pisaba el marcador que ya
-   había traído Sofascore con los nulos de API-Football (que en
-   amistosos chicos se queda en "NS" durante horas). Regla nueva: un
-   partido terminado no vuelve a "por jugarse", y `None` significa "esta
-   fuente no sabe", no "no hubo goles".
-3. **Empate en vivo al 69%.** El xG de Sofascore en un partido en curso
-   es lo ACUMULADO, y se trataba como previsión del partido completo
-   multiplicándolo otra vez por el tiempo restante. Doble descuento.
-   Ahora se extrapola el ritmo a 90 y se mezcla con la previsión
-   pre-partido pesando por minutos jugados.
+Los artefactos `calibracion.pkl` y `rho_dixon_coles.pkl` se cachean por `mtime`; un reentreno
+se detecta sin reiniciar la API. Cada worker tiene pool 8 + overflow 4; PostgreSQL permite 100.
 
-**PENDIENTE SIN RESOLVER — no apostar mercados de rojas.**
-`rojas_local` en `estadisticas_sofascores` promedia 0.52 por equipo y
-por partido en todos los años (2023-2026), cuando lo real ronda
-0.05-0.10. Ese campo no está guardando tarjetas rojas. Falta verificar
-contra el payload crudo de Sofascore qué es lo que trae.
+## 6. Fechas y partidos “de hoy”
 
----
+`Partido.fecha` se guarda UTC-naive. El día visible es `America/Guayaquil`, convertido a rango
+UTC semiabierto. Ejemplo: 14/08 Ecuador = `[2026-08-14 05:00, 2026-08-15 05:00)` UTC.
 
-## 6. Anclaje de `sofascore_id` — el cuello de botella
+Bug corregido: Cienciano–Botafogo y Rosario Central estaban a `00:30 UTC` del 14/08, pero eran
+19:30 Ecuador del 13/08. El filtro anterior por calendario UTC los mostraba al día siguiente.
+También se corrigió el scheduler 23:55, que calculaba “mañana” desde UTC y podía saltar fecha.
 
-Sin `sofascore_id` un partido **no tiene marcador en vivo, ni alineación
-confirmada, ni stats**. Cobertura hoy: **24 de 33** partidos del día.
+No volver a filtrar `Partido.fecha` con strings `00:00–23:59`; usar
+`rango_utc_dia_partidos()` y `fecha_hoy_partidos()`.
 
-El endpoint bueno es `/unique-tournament/{id}/scheduled-events/{fecha}`
-(sacado del tráfico real de sofascore.com). Los que NO sirven, ya
-probados: `/sport/football/scheduled-events/{fecha}` da 404 y
-`/events/next/` también.
+## 7. Scheduler de producción
 
-El cruce es por similitud de nombre eligiendo el **mejor** candidato del
-torneo y la fecha. Hizo falta puntaje en vez de reglas rígidas porque
-las dos fuentes escriben distinto el mismo club:
-`RB Bragantino`/`Red Bull Bragantino`, `Atletico-MG`/`Atlético Mineiro`,
-`Rapid Vienna`/`SK Rapid Wien`, `FC Copenhagen`/`FC København`. Y hace
-falta **ventaja sobre el segundo candidato** porque hay equipos
-distintos que puntúan altísimo (`Independiente` vs `Independiente del
-Valle` da 1.00).
+```text
+cada 15 min  alineaciones confirmadas Sofascore
+cada 15 min  marcador/stats/jugadores en vivo Sofascore
+cada 2 h     red de seguridad API-Football
+23:55        fixtures de hoy + mañana
+00:30        estadísticas API-Football
+00:45        fixtures de mañana
+01:00        Sofascore diario
+01:10        cuotas en cascada
+01:30        cerrar predicciones
+01:45        guardar y precalentar recomendadas
+03:00        reentrenar XGBoost/MLP/LSTM/GNN + Dixon-Coles
+04:30        pg_dump verificado
+```
 
-Para subir la cobertura: mapear los ids de torneo que faltan
-(clasificaciones y el resto de los amistosos). El descubridor
-(`descubridor_torneos.py`) los busca solo y guarda lo que aprende en
-`liga_sofascore_torneo`, pero tiene topes (`MAX_PAGINAS=3`,
-`MAX_CANDIDATOS=8`) que recortan.
+API-Football tiene 100 requests/día, reset UTC, controlado por `presupuesto_api_football`.
+Sofascore maneja el vivo. `job_odds_en_vivo` existe pero no está agendado porque excedía cuota.
 
-### 6b. Equipos duplicados — revisar si aparecen otra vez
+## 8. Modelo y calibración
 
-Un club quedaba cargado **dos veces** cuando entraba por dos caminos
-(API-Football en una copa + Sofascore al importar su liga), porque
-`buscar_candidatos` miraba solo equipos **de la liga que se estaba
-importando**. Consecuencia grave: el partido apuntaba a la fila vacía
-mientras el historial colgaba de la otra, y el modelo lo descartaba por
-"historial insuficiente" (caso real: Mirassol vs LDU de Quito, sin
-predicción teniendo 58 partidos en la fila duplicada).
+El entrenamiento aprende de partidos terminados; las predicciones de usuarios no son etiquetas
+de entrenamiento. Predicciones cerradas del sistema y usuarios sí alimentan
+`calibracion_produccion.py`, por familia de mercado, antes de Kelly.
 
-Ya corregido (ahora cae a buscar en todas las ligas) y **fusionados 20
-equipos** (Fluminense, Grêmio, Vasco, Bahia, Vitória…), 569 referencias
-repuntadas. Si vuelve a pasar:
-`python -m backend.pipeline.sofascore.fusionar_equipos --listar` para
-ver qué haría, sin `--listar` para aplicarlo.
+No confiar en cifras plausibles sin medir. Caso real: corners Over 11.5 parecía 85%, pero la
+frecuencia sobre 15.689 partidos era 27,1%. Se corrigió con regresión a la media (`K=8`).
 
-**Ligas que API-Football free no cubre** (solo llega a 2024): sus
-temporadas 2026 se traen de Sofascore. Ya cargadas Brasileirão (87678),
-MLS (86668), Liga Argentina (87913), LigaPro Ecuador (89674) y Liga MX
-Apertura (96191) — 1016 partidos. Si otra liga aparece congelada,
-buscar el season id en `/unique-tournament/{id}/seasons`, agregarlo a
-`TEMPORADAS_HISTORICAS` y correr
-`job_crear_fixtures_sofascore`.
+Pendiente crítico: no apostar mercados de rojas. `rojas_local/visitante` de Sofascore tiene
+promedios irreales (~0,52) y falta verificar el payload crudo.
 
-**Decisión tomada:** los equipos de ligas que NO seguimos (checa,
-polaca, sueca, suiza, segunda española) que aparecen en clasificatorias
-o amistosos **se dejan sin predicción**. Eran 35 de 65 partidos. Se
-escribió y descartó un job de relleno por equipo.
+## 9. Trampas conocidas
 
----
+- Puerto 8001 pertenece a `novitec-sgn`; BetML usa 8010.
+- Postgres 18 monta `/var/lib/postgresql`, no `/var/lib/postgresql/data`.
+- API y scheduler necesitan `TZ=America/Guayaquil`.
+- El scheduler corre solo en servidor; no levantar otro contra la misma cuota.
+- `torch==2.13.0+cpu` requiere el índice de PyTorch del Dockerfile.
+- El `.env` de producción no se sube.
+- El servidor aloja otras apps; conservar límites y medir antes de aumentar workers/CPU/RAM.
+- `rtk` es 0.42.4; en sesiones aisladas puede requerir `CLAUDE_CONFIG_DIR=C:\Users\USER\.claude`.
+- El intérprete de graphify está registrado en `graphify-out/.graphify_python`; usarlo para
+  `python -m graphify update .` si el trampoline `graphify.exe` falla.
 
-## 7. Arquitectura
+## 10. Rediseño UX/UI móvil
 
-**Pipeline** (`backend/pipeline/`): `pipeline_dia`, `job_estadisticas`,
-`job_odds`, `job_odds_en_vivo`, `job_partidos_en_vivo`,
-`job_cerrar_predicciones`, `job_guardar_recomendadas`,
-`job_reentrenar_modelos`, `presupuesto.py`, `odds/` (orquestador en
-cascada + `the_odds_api` + `odds_api_io`), y `sofascore/`
-(`job_sofascore`, `job_historico_sofascore`, `job_alineaciones`,
-`job_sofascore_en_vivo`, `job_odds_sofascore`, `descubridor_torneos`,
-`fusionar_equipos`, `cliente` con Playwright).
+Primera entrega implementada el 2026-08-14, todavía no desplegada:
 
-**Modelos** (`backend/models/`): XGBoost + MLP + LSTM + GNN combinados en
-`ensemble.py` (pondera por accuracy real). `montecarlo.py`
-(Dixon-Coles), `kelly.py`, `kelly_portfolio.py`, `parlay.py`,
-`calibracion.py`, `calibracion_produccion.py`, `explicacion.py`,
-`jugadores_montecarlo.py`, `parser_imagen.py`, `resolver_mercado.py`.
+- Navegación inferior: Hoy, Oportunidades, Portafolio y Rendimiento; Perfil queda en el avatar.
+- Rutas nuevas `/oportunidades`, `/portafolio` y `/rendimiento`; las rutas históricas siguen válidas.
+- Modo oscuro por defecto, superficies planas y tokens azul/verde/naranja/rojo con semántica estable.
+- Login explica ML/Monte Carlo, Kelly y seguimiento sin prometer resultados.
+- Home prioriza radar del día y oportunidad destacada; Detalle separa resumen, modelo, mercado y contexto.
+- Oportunidades usa riesgo controlado/alto; Portafolio agrupa selecciones y abre constructor combinado.
+- Rendimiento separa explícitamente métricas globales del modelo de la actividad del usuario.
+- Eventos UX pasan por `ProductAnalytics`; actualmente solo se imprimen en debug y no envían PII.
+- Validación local: `flutter analyze` limpio, `flutter test` 5/5 y
+  `frontend/build/app/outputs/flutter-apk/app-debug.apk` generado.
 
-**API** (`backend/api/routes/`): `partidos`, `predicciones`, `stats`,
-`auth`. Todo bajo JWT excepto `/auth/*` y `/health`.
+Pendiente UX: prueba manual en Android pequeño/grande, golden baselines, proveedor de analítica con
+consentimiento, medición real de Home <2 s y APK release firmado.
 
-**Frontend** (`frontend/lib/`): arquitectura limpia
-(domain/data/presentation), Provider, go_router. Pantallas: login, home,
-detalle, análisis avanzado, recomendadas (fijas/soñadoras), mis
-predicciones (agrupadas por partido con escudos), stats, perfil, parlay,
-analizar-captura.
+APK 0.2.0+2 publicado el 2026-08-14 con firma debug compatible con la versión distribuida.
+El script `deploy/deploy_apk.py` publica atómicamente en `/home/novitecadmin/betml-stack/apk`,
+verifica SHA-256 y actualiza `betml-latest.apk` sin borrar versiones anteriores.
 
-**Tests:** 96, `.venv\Scripts\python.exe -m pytest tests/ -q`.
-**Frontend:** `flutter analyze` → 0 issues.
+Cupón de predicciones publicado el 2026-08-17 en APK `0.4.7+11`:
 
-⚠️ **Los tests escriben en la base de PRODUCCIÓN.** 8 archivos usan
-`SessionLocal` y el `.env` de dev apunta al server por el túnel. Ya se
-insertaron usuarios de prueba sin querer. Los tests nuevos deberían ir
-contra lógica pura hasta que exista `tests/conftest.py` (Fase 0 del
-plan).
+- `PredictionCouponProvider` conserva hasta 30 selecciones al navegar entre pestañas.
+- La burbuja sobre la navegación abre un bottom sheet para quitar, vaciar, copiar y analizar.
+- No hay importes ni dinero: muestra mercado, probabilidad del modelo y contexto del partido.
+- El mismo cupón recibe selecciones desde el constructor, recomendaciones individuales,
+  recomendaciones de jugadores y mercados del detalle del partido.
+- Los mercados de jugadores solicitan cuota decimal informativa antes de agregarse.
+- El análisis/guardado sigue usando el endpoint de parlay existente y termina en Portafolio.
+- Límite deliberado actual: una selección por partido; elegir otra reemplaza la anterior.
+- Validación local: `flutter analyze` limpio y 11 pruebas Flutter aprobadas, incluida la
+  transición agregar/reemplazar/quitar del proveedor.
+- Descarga versionada: `https://novitec.com.ec/betml-apk/betml-pro-0.4.7%2B11.apk`.
+- Descarga latest: `https://novitec.com.ec/betml-apk/betml-latest.apk`.
+- APK: 56.044.030 bytes; SHA-256
+  `b6bb9b1d303e8fe4074db10e748acf57b2d9ee2fbd2972295a6a6650ab302190`.
 
----
+## 11. Pendientes priorizados
 
-## 8. Pendientes
+1. Probar el cupón del APK `0.4.7+11` en Android real y permitir varias selecciones del mismo
+   partido cuando el backend modele su correlación.
+2. Fase 4B: `/health` con `SELECT 1` y 503, healthcheck API, request-id/latencia, salud de jobs.
+3. Verificar el campo de tarjetas rojas contra payload Sofascore real.
+4. Mejorar anclaje `sofascore_id` de torneos/amistosos faltantes.
+5. Mejorar matching de odds-api.io (`KuPS` vs `Kuopion Palloseura`).
+6. Corregir partidos Saudi Pro League sin historial/predicción.
+7. Definir firma Android release estable antes de publicación masiva.
+8. Revisar por qué el home no mostró recomendaciones una vez; ahora el endpoint produce 30 y
+   tiene caché, pero falta reproducir el flujo visual si vuelve a ocurrir.
+9. Considerar Alembic cuando haya otra ronda de cambios de esquema; hoy
+   `backend/db/migraciones.py` usa ALTER/CREATE INDEX idempotentes.
 
-- [ ] **Ejecutar el plan aprobado** (ver arriba del todo).
-- [ ] Verificar qué guarda realmente `rojas_local` (ver punto 5).
-      **No apostar mercados de rojas hasta entonces.**
-- [ ] Subir cobertura de anclaje de 24/33 (ver punto 6).
-- [ ] odds-api.io cotiza 0 partidos: el cruce de nombres es muy
-      estricto (ver punto 3b).
-- [ ] Decidir si borrar los usuarios de prueba `beta@gmail.com` y
-      `aislamiento@gmail.com` de la BD de producción.
-- [ ] El usuario mencionó querer Sofascore cada 20 min en vez de 15
-      (hoy está en 15).
-- [ ] Los 3 partidos de **Saudi Pro League** sin predicción: esa liga
-      SÍ la seguimos, así que ahí falta algo (¿temporada 2026?).
+## 12. Prompt para retomar
 
----
-
-## 9. Prompt para retomar
-
-Copiá esto en una sesión nueva:
-
-> Retomamos BetML Pro. Leé `HANDOFF.md` en la raíz del repo y el plan
-> aprobado en `C:\Users\USER\.claude\plans\twinkling-bouncing-blum.md`
-> antes de tocar nada. También hay un grafo de graphify en
-> `graphify-out/` (1760 nodos) que sirve para navegar el proyecto.
->
-> La app está en producción en `https://novitec.com.ec/betml` con el
-> APK repartido, y el plan es para abrirla a miles de usuarios: login
-> con Google + refresh tokens, y tapar los agujeros que encontramos
-> midiendo (DoS con un request, sin rate limiting, `/recomendadas` con
-> 552.000 simulaciones por request y sin cache).
->
-> Arrancá por la **Fase 0** del plan, que es la red de seguridad:
-> `tests/conftest.py` para que pytest deje de escribir en la base de
-> producción, backups con `pg_dump`, y límites de RAM/CPU en
-> `docker-compose.prod.yml` (ojo: ese server corre otras apps de
-> producción del usuario).
->
-> Antes de dar algo por hecho, verificalo contra datos reales — en esta
-> sesión varios números que "se veían plausibles" estaban mal (córners
-> al 85% cuando la realidad era 27%).
-- [ ] Nada de HTTPS interno: el APK habla HTTPS con nginx, pero el
-      contenedor escucha en 0.0.0.0:8010 sin TLS. En la red del server
-      es aceptable; si algún día se expone el puerto directo, no.
+> Retomamos BetML Pro. Lee `HANDOFF.md`, el plan aprobado en
+> `C:\Users\USER\.claude\plans\twinkling-bouncing-blum.md` y usa `graphify-out/` para navegar.
+> Fases 0–3 están desplegadas; Fase 4A y el cupón global están publicados en APK `0.4.7+11`.
+> Continúa con validación Android y luego Fase 4B de observabilidad. Usa `rtk`, ejecuta tests solo
+> con `BETML_TEST_DB_URL`, preserva el árbol sucio y verifica números contra producción antes
+> de cambiar recursos o lógica. El servidor comparte carga con otras aplicaciones.

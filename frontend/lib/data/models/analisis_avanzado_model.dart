@@ -36,7 +36,8 @@ class KellyPortafolioModel extends KellyPortafolio {
       stakeTotalPct: (portafolio['stake_total_pct'] ?? 0.0).toDouble(),
       stakeTotalUnidades: (json['stake_total_unidades'] ?? 0.0).toDouble(),
       evPortafolio: (portafolio['ev_portafolio'] ?? 0.0).toDouble(),
-      probabilidadRuina: (json['probabilidad_ruina_temporada'] ?? 0.0).toDouble(),
+      probabilidadRuina:
+          (json['probabilidad_ruina_temporada'] ?? 0.0).toDouble(),
     );
   }
 }
@@ -78,7 +79,8 @@ class KellyMercadoModel extends KellyMercado {
 }
 
 class KellyAnalisisModel extends KellyAnalisis {
-  const KellyAnalisisModel({required super.todosMercados, required super.nValueBets});
+  const KellyAnalisisModel(
+      {required super.todosMercados, required super.nValueBets});
 
   factory KellyAnalisisModel.fromJson(Map<String, dynamic> json) {
     final kelly = json['kelly'] as Map<String, dynamic>;
@@ -122,7 +124,8 @@ class JugadorMercadoModel extends JugadorMercado {
     }
 
     double promedioDe(String bloque) =>
-        ((json[bloque] as Map<String, dynamic>? ?? {})['promedio'] ?? 0.0).toDouble();
+        ((json[bloque] as Map<String, dynamic>? ?? {})['promedio'] ?? 0.0)
+            .toDouble();
 
     return JugadorMercadoModel(
       nombre: json['nombre'] ?? 'Jugador',
@@ -149,7 +152,11 @@ class JugadorMercadoModel extends JugadorMercado {
 }
 
 class JugadoresPartidoModel extends JugadoresPartido {
-  const JugadoresPartidoModel({required super.local, required super.visitante});
+  const JugadoresPartidoModel({
+    required super.local,
+    required super.visitante,
+    required super.mercados,
+  });
 
   factory JugadoresPartidoModel.fromJson(Map<String, dynamic> json) {
     final jugadores = json['jugadores'] as Map<String, dynamic>;
@@ -160,6 +167,15 @@ class JugadoresPartidoModel extends JugadoresPartido {
     return JugadoresPartidoModel(
       local: parsear('local'),
       visitante: parsear('visitante'),
+      mercados: (json['mercados'] as List? ?? [])
+          .map((m) => MercadoJugadorDisponible(
+                clave: m['clave'] ?? '',
+                mercado: m['mercado'] ?? '',
+                jugador: m['jugador'] ?? '',
+                probabilidad: (m['probabilidad'] ?? 0).toDouble(),
+                nPartidosHistorial: m['n_partidos_historial'] ?? 0,
+              ))
+          .toList(),
     );
   }
 }

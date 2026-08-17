@@ -23,6 +23,7 @@ class PartidoModel extends Partido {
     required super.temporada,
     super.jornada,
     super.prediccion,
+    super.disponibilidadPrediccion,
   });
 
   factory PartidoModel.fromJson(Map<String, dynamic> json) {
@@ -49,6 +50,10 @@ class PartidoModel extends Partido {
       prediccion:   json['prediccion'] != null
                     ? PrediccionModel.fromJson(json['prediccion'])
                     : null,
+      disponibilidadPrediccion: json['disponibilidad_prediccion'] != null
+          ? DisponibilidadPrediccionModel.fromJson(
+              json['disponibilidad_prediccion'])
+          : null,
     );
   }
 }
@@ -64,6 +69,7 @@ class PrediccionModel extends Prediccion {
     required super.mercados,
     super.factores,
     super.resumenH2h,
+    super.calidadDatos,
   });
 
   factory PrediccionModel.fromJson(Map<String, dynamic> json) {
@@ -81,8 +87,31 @@ class PrediccionModel extends Prediccion {
                      .map((f) => FactorModel.fromJson(f))
                      .toList(),
       resumenH2h:    json['resumen_h2h'] as String?,
+      calidadDatos:  json['calidad_datos'] ?? 'alta',
     );
   }
+}
+
+class DisponibilidadPrediccionModel extends DisponibilidadPrediccion {
+  const DisponibilidadPrediccionModel({
+    required super.codigo,
+    required super.calidad,
+    required super.localPartidosLocalia,
+    required super.visitantePartidosLocalia,
+    required super.localPartidosGenerales,
+    required super.visitantePartidosGenerales,
+  });
+
+  factory DisponibilidadPrediccionModel.fromJson(Map<String, dynamic> json) =>
+      DisponibilidadPrediccionModel(
+        codigo: json['codigo'] ?? 'UNKNOWN',
+        calidad: json['calidad'] ?? 'insuficiente',
+        localPartidosLocalia: json['local_partidos_localia'] ?? 0,
+        visitantePartidosLocalia: json['visitante_partidos_localia'] ?? 0,
+        localPartidosGenerales: json['local_partidos_generales'] ?? 0,
+        visitantePartidosGenerales:
+            json['visitante_partidos_generales'] ?? 0,
+      );
 }
 
 class PrediccionEnVivoModel extends PrediccionEnVivo {

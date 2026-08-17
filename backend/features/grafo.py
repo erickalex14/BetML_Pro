@@ -10,16 +10,12 @@ Dos tipos de nodo (equipo, jugador), dos tipos de arista:
     estadisticas_jugador está 100% vacía en los datos reales, nunca se
     pobló — no es una opción usarla directo).
 
-LIMITACIÓN CONOCIDA (transductivo, no temporal-safe por partido): el
-grafo se construye UNA VEZ con datos "a la fecha" (career-to-date), no
-uno distinto por cada partido a predecir como sí hace XGBoost/MLP/LSTM.
-Esto es una simplificación real — un GNN temporalmente estricto
-reconstruiría el grafo en cada fecha de corte, pero eso es un proyecto
-aparte (grafos dinámicos). Con un solo snapshot, entrenar con partidos
-de hace 2 años ve el grafo actualizado con datos posteriores a esos
-partidos — hay fuga leve de información futura hacia el embedding de
-cada equipo. Aceptable para esta primera versión; ver TODO en
-construir_grafo() si hace falta upgrade a snapshots por temporada.
+LIMITACIÓN CONOCIDA: dentro del bloque de entrenamiento se usa una sola
+foto del grafo en vez de reconstruirla por partido. La validación sí es
+temporalmente segura: entrenar_gnn() congela esta foto antes de la fecha
+de corte y no introduce aristas ni resultados del bloque reservado.
+Un backtest walk-forward con snapshots periódicos sería el siguiente
+nivel de rigor, pero ya no contamina la métrica publicada.
 """
 import logging
 import numpy as np

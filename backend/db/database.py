@@ -5,7 +5,8 @@ from backend.pipeline.config import DB_URL
 
 engine =  create_engine(
     DB_URL,
-    pool_size=10,
+    pool_size=8,
+    max_overflow=4,
     pool_pre_ping=True,
     pool_recycle=3600
 )

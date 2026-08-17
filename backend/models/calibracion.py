@@ -15,6 +15,7 @@ confianza — un rango con pocas muestras en validación es una calibración
 menos confiable, aunque la curva diga lo que diga.
 """
 import logging
+from functools import lru_cache
 import numpy as np
 import joblib
 from pathlib import Path
@@ -92,4 +93,9 @@ def cargar_calibracion(ruta: Path = CALIB_PATH):
     if not ruta.exists():
         log.warning(f"No hay calibración guardada en {ruta}")
         return None
+    return _cargar_calibracion_mtime(str(ruta), ruta.stat().st_mtime_ns)
+
+
+@lru_cache(maxsize=2)
+def _cargar_calibracion_mtime(ruta: str, _mtime_ns: int):
     return joblib.load(ruta)

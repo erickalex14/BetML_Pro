@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -60,8 +61,13 @@ def cargar_rho() -> float:
     """rho ajustado a datos propios si ya se corrió
     ajustar_rho_dixon_coles(), si no el valor de literatura."""
     if RHO_PATH.exists():
-        return joblib.load(RHO_PATH)
+        return _cargar_rho_mtime(str(RHO_PATH), RHO_PATH.stat().st_mtime_ns)
     return RHO_DIXON_COLES_DEFAULT
+
+
+@lru_cache(maxsize=2)
+def _cargar_rho_mtime(ruta: str, _mtime_ns: int) -> float:
+    return joblib.load(ruta)
 
 
 def _tau_dixon_coles(x: int, y: int, lam: float, mu: float, rho: float) -> float:
@@ -413,15 +419,17 @@ def simular_con_prediccion(prediccion: dict,
     Corre Monte Carlo usando las probabilidades del modelo ML
     cuando no hay xG disponible.
 
-    Estima el xG a partir de las probabilidades:
-    - Equipo favorito → xG más alto
-    - Equipo underdog → xG más bajo
+    Compatibilidad para callers sin base de datos. Conserva un total
+    neutral de 2.6 goles y usa 1X2 únicamente para repartir la fuerza
+    relativa; P(empate) nunca reduce el total esperado.
     """
     prob_l = prediccion.get("prob_local", 0.33)
     prob_v = prediccion.get("prob_visitante", 0.33)
 
-    xg_local = max(0.3, prob_l * 2.5)
-    xg_visit = max(0.3, prob_v * 2.5)
+    suma_lados = prob_l + prob_v
+    proporcion_local = prob_l / suma_lados if suma_lados > 0 else 0.5
+    xg_local = max(0.3, 2.6 * proporcion_local)
+    xg_visit = max(0.3, 2.6 * (1 - proporcion_local))
 
     return simular_partido(xg_local, xg_visit, n_simulaciones)
 

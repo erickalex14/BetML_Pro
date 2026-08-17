@@ -7,13 +7,18 @@ class ApuestaIndividual {
   final int partidoId;
   final String local;
   final String visitante;
+  final String? localLogo;
+  final String? visitanteLogo;
   final String liga;
+  final int? ligaId;
+  final DateTime? hora;
   final String mercado;
   final double probabilidad;
   final double cuota;
   final double ev;
   final double edge;
   final double stakePct;
+
   /// null = todavía sin resolver. Se llena cuando el partido termina y
   /// job_cerrar_predicciones la cierra contra el resultado real.
   final bool? acerto;
@@ -23,7 +28,11 @@ class ApuestaIndividual {
     required this.partidoId,
     required this.local,
     required this.visitante,
+    this.localLogo,
+    this.visitanteLogo,
     required this.liga,
+    this.ligaId,
+    this.hora,
     required this.mercado,
     required this.probabilidad,
     required this.cuota,
@@ -40,6 +49,36 @@ class ApuestaIndividual {
   String get porQue =>
       'Probabilidad del modelo ${(probabilidad * 100).toStringAsFixed(0)}% '
       'vs cuota ${cuota.toStringAsFixed(2)} → edge ${(edge * 100).toStringAsFixed(1)}pp';
+}
+
+class PronosticoJugador {
+  final int partidoId;
+  final String local;
+  final String visitante;
+  final String? localLogo;
+  final String? visitanteLogo;
+  final String liga;
+  final String clave;
+  final String mercado;
+  final String jugador;
+  final double probabilidad;
+  final int nPartidosHistorial;
+  final bool? acerto;
+
+  const PronosticoJugador({
+    required this.partidoId,
+    required this.local,
+    required this.visitante,
+    this.localLogo,
+    this.visitanteLogo,
+    required this.liga,
+    required this.clave,
+    required this.mercado,
+    required this.jugador,
+    required this.probabilidad,
+    required this.nPartidosHistorial,
+    this.acerto,
+  });
 }
 
 class MercadoCombinada {
@@ -109,13 +148,15 @@ class ParlaySugerido {
 }
 
 // "fijas" = alta probabilidad del modelo, para apostar con poco riesgo.
-// "sonadoras" = cuota alta / probabilidad menor pero jugosa si pega —
+// "sonadoras" = cuota alta / probabilidad menor y mayor riesgo —
 // ambas siguen siendo value bets con edge positivo, no apuestas al azar
 // (ver UMBRAL_FIJA_PROB en backend/api/routes/predicciones.py).
 class Recomendadas {
   final String fecha;
   final List<ApuestaIndividual> individualesFijas;
   final List<ApuestaIndividual> individualesSonadoras;
+  final List<PronosticoJugador> jugadoresFijas;
+  final List<PronosticoJugador> jugadoresSonadoras;
   final List<CombinadaMismoPartido> combinadasFijas;
   final List<CombinadaMismoPartido> combinadasSonadoras;
   final List<ParlaySugerido> parlaysFijas;
@@ -125,6 +166,8 @@ class Recomendadas {
     required this.fecha,
     required this.individualesFijas,
     required this.individualesSonadoras,
+    required this.jugadoresFijas,
+    required this.jugadoresSonadoras,
     required this.combinadasFijas,
     required this.combinadasSonadoras,
     required this.parlaysFijas,
@@ -132,7 +175,12 @@ class Recomendadas {
   });
 
   bool get vacio =>
-      individualesFijas.isEmpty && individualesSonadoras.isEmpty &&
-      combinadasFijas.isEmpty && combinadasSonadoras.isEmpty &&
-      parlaysFijas.isEmpty && parlaysSonadoras.isEmpty;
+      individualesFijas.isEmpty &&
+      individualesSonadoras.isEmpty &&
+      jugadoresFijas.isEmpty &&
+      jugadoresSonadoras.isEmpty &&
+      combinadasFijas.isEmpty &&
+      combinadasSonadoras.isEmpty &&
+      parlaysFijas.isEmpty &&
+      parlaysSonadoras.isEmpty;
 }

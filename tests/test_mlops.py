@@ -137,13 +137,24 @@ def test_peso_modelo_usa_fallback_con_pocas_muestras(historial_modelo):
     assert peso == 0.777
 
 
-def test_peso_modelo_usa_accuracy_real_con_historial_suficiente(historial_modelo):
+def test_peso_modelo_usa_brier_real_con_historial_suficiente(historial_modelo):
     db, partido, mercado = historial_modelo
     n = MIN_MUESTRAS_PESO
     _crear_cerradas(db, partido, mercado, n_aciertos=n, n_fallos=0)  # 100% real, != fallback
 
     peso = _peso_modelo(db, "modelo_test_peso", val_acc_fallback=0.5)
-    assert peso == 1.0
+    # Confianza 0.5 y todos aciertos: Brier=.25, peso neutral=.50.
+    assert peso == 0.5
+
+
+def test_peso_modelo_usa_brier_de_validacion_como_fallback(historial_modelo):
+    db, partido, mercado = historial_modelo
+    _crear_cerradas(db, partido, mercado, n_aciertos=2, n_fallos=2)
+
+    peso = _peso_modelo(
+        db, "modelo_test_peso", val_acc_fallback=0.1, val_brier_fallback=0.16)
+
+    assert peso == pytest.approx(0.59)
 
 
 @pytest.fixture

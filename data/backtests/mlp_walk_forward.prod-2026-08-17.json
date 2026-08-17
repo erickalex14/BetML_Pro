@@ -1,0 +1,143 @@
+{
+  "generado_en": "2026-08-17T15:15:37.960618+00:00",
+  "modelo": "mlp_1x2",
+  "metodo": "expanding_window",
+  "global": {
+    "n": 8863,
+    "accuracy": 0.446012,
+    "log_loss": 1.056577,
+    "brier_multiclase": 0.636188,
+    "confianza_media": 0.439209,
+    "gap_calibracion": 0.006802,
+    "alta_confianza": {
+      "umbral": 0.65,
+      "n": 143,
+      "cobertura": 0.016134,
+      "accuracy": 0.685315,
+      "confianza_media": 0.687234
+    }
+  },
+  "baseline_frecuencias_train": {
+    "n": 8863,
+    "accuracy": 0.451879,
+    "log_loss": 1.065991,
+    "brier_multiclase": 0.644298,
+    "confianza_media": 0.457839,
+    "gap_calibracion": -0.00596,
+    "alta_confianza": {
+      "umbral": 0.65,
+      "n": 0,
+      "cobertura": 0.0,
+      "accuracy": null,
+      "confianza_media": null
+    }
+  },
+  "mejora_vs_baseline": {
+    "accuracy": -0.005867,
+    "log_loss": 0.009414,
+    "brier_multiclase": 0.00811
+  },
+  "ventanas": [
+    {
+      "ventana": 1,
+      "train_n": 7393,
+      "validacion_n": 2429,
+      "validacion_desde": "2024-11-23T07:30:00",
+      "validacion_hasta": "2025-04-23T21:00:00",
+      "n": 2429,
+      "accuracy": 0.45739,
+      "log_loss": 1.045733,
+      "brier_multiclase": 0.628597,
+      "confianza_media": 0.450225,
+      "gap_calibracion": 0.007165,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 60,
+        "cobertura": 0.024702,
+        "accuracy": 0.683333,
+        "confianza_media": 0.690126
+      }
+    },
+    {
+      "ventana": 2,
+      "train_n": 9822,
+      "validacion_n": 2214,
+      "validacion_desde": "2025-04-24T11:30:00",
+      "validacion_hasta": "2025-09-29T18:00:00",
+      "n": 2214,
+      "accuracy": 0.446703,
+      "log_loss": 1.05948,
+      "brier_multiclase": 0.638162,
+      "confianza_media": 0.429115,
+      "gap_calibracion": 0.017588,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 19,
+        "cobertura": 0.008582,
+        "accuracy": 0.842105,
+        "confianza_media": 0.677713
+      }
+    },
+    {
+      "ventana": 3,
+      "train_n": 12036,
+      "validacion_n": 2276,
+      "validacion_desde": "2025-09-30T11:45:00",
+      "validacion_hasta": "2026-02-25T19:30:00",
+      "n": 2276,
+      "accuracy": 0.464411,
+      "log_loss": 1.047704,
+      "brier_multiclase": 0.629986,
+      "confianza_media": 0.43938,
+      "gap_calibracion": 0.025031,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 34,
+        "cobertura": 0.014938,
+        "accuracy": 0.558824,
+        "confianza_media": 0.692596
+      }
+    },
+    {
+      "ventana": 4,
+      "train_n": 14312,
+      "validacion_n": 1944,
+      "validacion_desde": "2026-02-26T12:45:00",
+      "validacion_hasta": "2026-08-17T02:30:00",
+      "n": 1944,
+      "accuracy": 0.409465,
+      "log_loss": 1.077207,
+      "brier_multiclase": 0.650688,
+      "confianza_media": 0.436742,
+      "gap_calibracion": -0.027277,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 30,
+        "cobertura": 0.015432,
+        "accuracy": 0.733333,
+        "confianza_media": 0.681402
+      }
+    }
+  ],
+  "roi": null,
+  "nota_roi": "No calculado: falta snapshot de cuota al emitir.",
+  "periodo_solicitado": {
+    "desde": "2026-08-14T00:00:00",
+    "hasta_exclusivo": "2026-08-17T00:00:00",
+    "metricas": {
+      "n": 70,
+      "accuracy": 0.285714,
+      "log_loss": 1.119946,
+      "brier_multiclase": 0.679643,
+      "confianza_media": 0.425267,
+      "gap_calibracion": -0.139553,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 0,
+        "cobertura": 0.0,
+        "accuracy": null,
+        "confianza_media": null
+      }
+    }
+  }
+}

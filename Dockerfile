@@ -43,4 +43,4 @@ COPY data/models/ ./data/models/
 
 EXPOSE 8001
 
-CMD ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "3"]

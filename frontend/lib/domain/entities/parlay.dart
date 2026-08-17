@@ -1,9 +1,18 @@
 class ParlaySeleccionInput {
   final int partidoId;
-  final String mercado; // "local" | "empate" | "visitante"
-  const ParlaySeleccionInput({required this.partidoId, required this.mercado});
+  final String mercado;
+  final double? cuota;
+  const ParlaySeleccionInput({
+    required this.partidoId,
+    required this.mercado,
+    this.cuota,
+  });
 
-  Map<String, dynamic> toJson() => {'partido_id': partidoId, 'mercado': mercado};
+  Map<String, dynamic> toJson() => {
+        'partido_id': partidoId,
+        'mercado': mercado,
+        if (cuota != null) 'cuota': cuota,
+      };
 }
 
 class ParlayResultado {

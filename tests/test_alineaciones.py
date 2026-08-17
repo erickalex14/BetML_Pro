@@ -80,6 +80,19 @@ def test_abreviaturas_pasan_por_la_regla_de_ventaja():
     assert _similitud("Independiente", "Independiente del Valle") >= UMBRAL_SIMILITUD
 
 
+def test_match_debil_exige_al_menos_un_equipo_fuerte():
+    from backend.pipeline.sofascore.job_alineaciones import _aceptar_match
+
+    # Caso real falso: Platense-Boca fue asociado a River-Argentinos.
+    assert not _aceptar_match(mejor=0.53, segundo=0.20,
+                              lado_mas_fuerte=0.60)
+    # Caso legítimo: un nombre exacto y su rival renombrado/abreviado.
+    assert _aceptar_match(mejor=0.53, segundo=0.20,
+                          lado_mas_fuerte=1.0)
+    assert _aceptar_match(mejor=0.90, segundo=0.89,
+                          lado_mas_fuerte=0.95)
+
+
 def test_guardar_jugadores_actualiza_en_vez_de_saltar_si_ya_existe():
     db = SessionLocal()
     try:
@@ -134,4 +147,31 @@ def test_lineup_confirmada_vacia_si_todavia_no_se_publico():
         assert obtener_lineup_confirmada(db, partido_id, es_local=True) == []
     finally:
         _limpiar(db)
+        db.close()
+
+
+def test_ventana_de_anclaje_cubre_los_dos_dias_de_cuotas():
+    from datetime import timedelta
+    from backend.pipeline.config import ahora_partidos
+    from backend.pipeline.sofascore.job_alineaciones import _partidos_a_anclar
+
+    db = SessionLocal()
+    partido_id = 99881
+    equipo_ids = (81881, 81882)
+    try:
+        db.query(Partido).filter(Partido.id == partido_id).delete()
+        _equipo_temporal(db, equipo_ids[0], "Ventana local")
+        _equipo_temporal(db, equipo_ids[1], "Ventana visitante")
+        db.add(Partido(
+            id=partido_id, liga_id=39, temporada=2026,
+            equipo_local_id=equipo_ids[0], equipo_visit_id=equipo_ids[1],
+            fecha=ahora_partidos() + timedelta(days=2), estado="NS",
+        ))
+        db.commit()
+
+        assert partido_id not in {p.id for p in _partidos_a_anclar(db)}
+        assert partido_id in {p.id for p in _partidos_a_anclar(db, 2)}
+    finally:
+        db.query(Partido).filter(Partido.id == partido_id).delete()
+        db.commit()
         db.close()

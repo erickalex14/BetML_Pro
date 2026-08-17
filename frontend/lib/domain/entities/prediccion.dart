@@ -8,6 +8,7 @@ class Prediccion {
   final List<Mercado> mercados;
   final List<Factor> factores;
   final String? resumenH2h;
+  final String calidadDatos;
 
   const Prediccion({
     required this.partidoId,
@@ -19,6 +20,7 @@ class Prediccion {
     required this.mercados,
     this.factores = const [],
     this.resumenH2h,
+    this.calidadDatos = 'alta',
   });
 
   // Computed properties

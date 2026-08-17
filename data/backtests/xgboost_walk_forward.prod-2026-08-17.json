@@ -1,0 +1,203 @@
+{
+  "generado_en": "2026-08-17T15:08:25.031314+00:00",
+  "modelo": "xgboost",
+  "metodo": "expanding_window",
+  "ventanas": [
+    {
+      "ventana": 1,
+      "train_n": 7393,
+      "train_hasta": "2024-11-22T19:30:00",
+      "validacion_desde": "2024-11-23T07:30:00",
+      "validacion_hasta": "2025-04-23T21:00:00",
+      "n": 2429,
+      "accuracy": 0.454096,
+      "log_loss": 1.050306,
+      "brier_multiclase": 0.631766,
+      "confianza_media": 0.457684,
+      "gap_calibracion": -0.003588,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 109,
+        "cobertura": 0.044874,
+        "accuracy": 0.678899,
+        "confianza_media": 0.701545
+      },
+      "baseline_frecuencias_train": {
+        "n": 2429,
+        "accuracy": 0.438864,
+        "log_loss": 1.073892,
+        "brier_multiclase": 0.649797,
+        "confianza_media": 0.462329,
+        "gap_calibracion": -0.023466,
+        "alta_confianza": {
+          "umbral": 0.65,
+          "n": 0,
+          "cobertura": 0.0,
+          "accuracy": null,
+          "confianza_media": null
+        }
+      }
+    },
+    {
+      "ventana": 2,
+      "train_n": 9822,
+      "train_hasta": "2025-04-23T21:00:00",
+      "validacion_desde": "2025-04-24T11:30:00",
+      "validacion_hasta": "2025-09-29T18:00:00",
+      "n": 2214,
+      "accuracy": 0.469286,
+      "log_loss": 1.050527,
+      "brier_multiclase": 0.63179,
+      "confianza_media": 0.441157,
+      "gap_calibracion": 0.028129,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 37,
+        "cobertura": 0.016712,
+        "accuracy": 0.783784,
+        "confianza_media": 0.686419
+      },
+      "baseline_frecuencias_train": {
+        "n": 2214,
+        "accuracy": 0.448961,
+        "log_loss": 1.066376,
+        "brier_multiclase": 0.644726,
+        "confianza_media": 0.456526,
+        "gap_calibracion": -0.007565,
+        "alta_confianza": {
+          "umbral": 0.65,
+          "n": 0,
+          "cobertura": 0.0,
+          "accuracy": null,
+          "confianza_media": null
+        }
+      }
+    },
+    {
+      "ventana": 3,
+      "train_n": 12036,
+      "train_hasta": "2025-09-29T18:00:00",
+      "validacion_desde": "2025-09-30T11:45:00",
+      "validacion_hasta": "2026-02-25T19:30:00",
+      "n": 2276,
+      "accuracy": 0.448155,
+      "log_loss": 1.052081,
+      "brier_multiclase": 0.633083,
+      "confianza_media": 0.438672,
+      "gap_calibracion": 0.009482,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 43,
+        "cobertura": 0.018893,
+        "accuracy": 0.744186,
+        "confianza_media": 0.692819
+      },
+      "baseline_frecuencias_train": {
+        "n": 2276,
+        "accuracy": 0.466169,
+        "log_loss": 1.058793,
+        "brier_multiclase": 0.639128,
+        "confianza_media": 0.455135,
+        "gap_calibracion": 0.011034,
+        "alta_confianza": {
+          "umbral": 0.65,
+          "n": 0,
+          "cobertura": 0.0,
+          "accuracy": null,
+          "confianza_media": null
+        }
+      }
+    },
+    {
+      "ventana": 4,
+      "train_n": 14312,
+      "train_hasta": "2026-02-25T19:30:00",
+      "validacion_desde": "2026-02-26T12:45:00",
+      "validacion_hasta": "2026-08-17T02:30:00",
+      "n": 1944,
+      "accuracy": 0.421296,
+      "log_loss": 1.072444,
+      "brier_multiclase": 0.647328,
+      "confianza_media": 0.427805,
+      "gap_calibracion": -0.006509,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 16,
+        "cobertura": 0.00823,
+        "accuracy": 0.6875,
+        "confianza_media": 0.673944
+      },
+      "baseline_frecuencias_train": {
+        "n": 1944,
+        "accuracy": 0.454733,
+        "log_loss": 1.064108,
+        "brier_multiclase": 0.642993,
+        "confianza_media": 0.456889,
+        "gap_calibracion": -0.002157,
+        "alta_confianza": {
+          "umbral": 0.65,
+          "n": 0,
+          "cobertura": 0.0,
+          "accuracy": null,
+          "confianza_media": null
+        }
+      }
+    }
+  ],
+  "global": {
+    "n": 8863,
+    "accuracy": 0.449171,
+    "log_loss": 1.055673,
+    "brier_multiclase": 0.635524,
+    "confianza_media": 0.44212,
+    "gap_calibracion": 0.007051,
+    "alta_confianza": {
+      "umbral": 0.65,
+      "n": 205,
+      "cobertura": 0.02313,
+      "accuracy": 0.712195,
+      "confianza_media": 0.69483
+    }
+  },
+  "baseline_frecuencias_train": {
+    "n": 8863,
+    "accuracy": 0.451879,
+    "log_loss": 1.065991,
+    "brier_multiclase": 0.644298,
+    "confianza_media": 0.457839,
+    "gap_calibracion": -0.00596,
+    "alta_confianza": {
+      "umbral": 0.65,
+      "n": 0,
+      "cobertura": 0.0,
+      "accuracy": null,
+      "confianza_media": null
+    }
+  },
+  "roi": null,
+  "nota_roi": "No calculado: la base no conserva la cuota exacta al emitir cada predicción.",
+  "mejora_vs_baseline": {
+    "accuracy": -0.002708,
+    "log_loss": 0.010318,
+    "brier_multiclase": 0.008774
+  },
+  "periodo_solicitado": {
+    "desde": "2026-08-14T00:00:00",
+    "hasta_exclusivo": "2026-08-17T00:00:00",
+    "metricas": {
+      "n": 70,
+      "accuracy": 0.4,
+      "log_loss": 1.076601,
+      "brier_multiclase": 0.648596,
+      "confianza_media": 0.418851,
+      "gap_calibracion": -0.018851,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 1,
+        "cobertura": 0.014286,
+        "accuracy": 1.0,
+        "confianza_media": 0.676776
+      }
+    }
+  }
+}

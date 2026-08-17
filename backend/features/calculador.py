@@ -129,6 +129,65 @@ def calcular_forma(db: Session, equipo_id: int, fecha_limite,
     }
 
 
+def calcular_forma_general(db: Session, equipo_id: int, fecha_limite,
+                           n: int = 10) -> dict:
+    """Forma reciente sin exigir localía, siempre anterior al partido."""
+    partidos = (
+        db.query(Partido)
+        .filter(
+            or_(Partido.equipo_local_id == equipo_id,
+                Partido.equipo_visit_id == equipo_id),
+            Partido.fecha < fecha_limite,
+            Partido.estado == "FT",
+            Partido.goles_local.isnot(None),
+            Partido.goles_visitante.isnot(None),
+            Partido.liga_id.notin_(LIGAS_SIN_HISTORIAL_ID),
+        )
+        .order_by(Partido.fecha.desc())
+        .limit(n)
+        .all()
+    )
+    if not partidos:
+        return {"puntos": 0, "goles_favor": 0.0,
+                "goles_contra": 0.0, "n_partidos": 0}
+
+    puntos, favor, contra = 0, [], []
+    for p in partidos:
+        es_local = p.equipo_local_id == equipo_id
+        gf = p.goles_local if es_local else p.goles_visitante
+        gc = p.goles_visitante if es_local else p.goles_local
+        puntos += 3 if gf > gc else (1 if gf == gc else 0)
+        favor.append(gf)
+        contra.append(gc)
+    return {
+        "puntos": puntos,
+        "goles_favor": round(sum(favor) / len(favor), 2),
+        "goles_contra": round(sum(contra) / len(contra), 2),
+        "n_partidos": len(partidos),
+    }
+
+
+def diagnosticar_historial(db: Session, partido: Partido) -> dict:
+    local_rol = calcular_forma(db, partido.equipo_local_id, partido.fecha, True, 5)
+    visit_rol = calcular_forma(db, partido.equipo_visit_id, partido.fecha, False, 5)
+    local_total = calcular_forma_general(db, partido.equipo_local_id, partido.fecha, 10)
+    visit_total = calcular_forma_general(db, partido.equipo_visit_id, partido.fecha, 10)
+    if local_total["n_partidos"] < 3 or visit_total["n_partidos"] < 3:
+        codigo, calidad = "NO_FINISHED_MATCHES", "insuficiente"
+    elif local_rol["n_partidos"] < 3 or visit_rol["n_partidos"] < 3:
+        codigo, calidad = "INSUFFICIENT_VENUE_SAMPLE", "moderada"
+    else:
+        codigo, calidad = "OK", "alta"
+    return {
+        "codigo": codigo,
+        "calidad": calidad,
+        "local_partidos_localia": local_rol["n_partidos"],
+        "visitante_partidos_localia": visit_rol["n_partidos"],
+        "local_partidos_generales": local_total["n_partidos"],
+        "visitante_partidos_generales": visit_total["n_partidos"],
+    }
+
+
 def calcular_stats_sofascore(db: Session, equipo_id: int,
                               fecha_limite, es_local: bool,
                               n: int = 5) -> dict:
@@ -168,14 +227,16 @@ def calcular_stats_sofascore(db: Session, equipo_id: int,
         "tiros_arco_favor": 0.0, "tiros_arco_contra": 0.0,
         "corners_favor": 0.0, "corners_contra": 0.0,
         "presiones_favor": 0.0, "presiones_contra": 0.0,
-        "posesion": 0.0, "amarillas_favor": 0.0, "rojas_favor": 0.0, "n_con_stats": 0
+        "posesion": 0.0, "amarillas_favor": 0.0, "rojas_favor": 0.0,
+        "n_con_stats": 0, "n_con_xg": 0,
     }
 
     if not partidos:
         return vacio
 
-    stats_acum = {k: [] for k in vacio if k != "n_con_stats"}
+    stats_acum = {k: [] for k in vacio if k not in {"n_con_stats", "n_con_xg"}}
     n_con_stats = 0
+    n_con_xg = 0
 
     for p in partidos:
         s = p.stats_sofascore
@@ -189,8 +250,10 @@ def calcular_stats_sofascore(db: Session, equipo_id: int,
         n_con_stats += 1
 
         if es_local:
-            stats_acum["xg_favor"].append(s.xg_local or 0)
-            stats_acum["xg_contra"].append(s.xg_visitante or 0)
+            if s.xg_local is not None and s.xg_visitante is not None:
+                stats_acum["xg_favor"].append(s.xg_local)
+                stats_acum["xg_contra"].append(s.xg_visitante)
+                n_con_xg += 1
             stats_acum["tiros_favor"].append(s.tiros_local or 0)
             stats_acum["tiros_contra"].append(s.tiros_visitante or 0)
             stats_acum["tiros_arco_favor"].append(s.tiros_arco_local or 0)
@@ -203,8 +266,10 @@ def calcular_stats_sofascore(db: Session, equipo_id: int,
             stats_acum["amarillas_favor"].append(s.amarillas_local or 0)
             stats_acum["rojas_favor"].append(s.rojas_local or 0)
         else:
-            stats_acum["xg_favor"].append(s.xg_visitante or 0)
-            stats_acum["xg_contra"].append(s.xg_local or 0)
+            if s.xg_local is not None and s.xg_visitante is not None:
+                stats_acum["xg_favor"].append(s.xg_visitante)
+                stats_acum["xg_contra"].append(s.xg_local)
+                n_con_xg += 1
             stats_acum["tiros_favor"].append(s.tiros_visitante or 0)
             stats_acum["tiros_contra"].append(s.tiros_local or 0)
             stats_acum["tiros_arco_favor"].append(s.tiros_arco_visitante or 0)
@@ -223,7 +288,7 @@ def calcular_stats_sofascore(db: Session, equipo_id: int,
     return {
         k: round(sum(v) / len(v), 3) if v else 0.0
         for k, v in stats_acum.items()
-    } | {"n_con_stats": n_con_stats}
+    } | {"n_con_stats": n_con_stats, "n_con_xg": n_con_xg}
 
 
 def calcular_rating_jugadores(db: Session, equipo_id: int,
@@ -396,8 +461,13 @@ def construir_features_partido(db: Session,
     forma_l  = calcular_forma(db, local_id, fecha, es_local=True,  n=5)
     forma_v  = calcular_forma(db, visit_id, fecha, es_local=False, n=5)
 
-    if forma_l["n_partidos"] < 3 or forma_v["n_partidos"] < 3:
+    diagnostico = diagnosticar_historial(db, partido)
+    if diagnostico["codigo"] == "NO_FINISHED_MATCHES":
         return None
+    if forma_l["n_partidos"] < 3:
+        forma_l = calcular_forma_general(db, local_id, fecha, n=10)
+    if forma_v["n_partidos"] < 3:
+        forma_v = calcular_forma_general(db, visit_id, fecha, n=10)
 
     wr_local = calcular_win_rate(db, local_id, fecha, es_local=True,  n=10)
     wr_visit = calcular_win_rate(db, visit_id, fecha, es_local=False, n=10)
@@ -449,6 +519,9 @@ def construir_features_partido(db: Session,
         "liga_id":     partido.liga_id,
         "temporada":   partido.temporada,
         "fecha":       partido.fecha,
+        # Metadatos fuera de FEATURES_ML: trazabilidad para API/UI.
+        "calidad_datos": diagnostico["calidad"],
+        "diagnostico_historial": diagnostico,
 
         # Forma básica local
         "forma_local_puntos":  forma_l["puntos"],

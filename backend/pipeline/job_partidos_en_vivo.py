@@ -15,10 +15,10 @@ sola esta tarea gastaría ~60-90 más. La guardia de abajo lo deja en
 ~0 costo cuando no hay nada que pueda haber cambiado (antes del
 primer kickoff del día, después del último final)."""
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from backend.db.database import SessionLocal
 from backend.db.modelos import Partido
-from backend.pipeline.config import ahora_partidos
+from backend.pipeline.config import ahora_partidos, fecha_hoy_partidos, rango_utc_dia_partidos
 
 log = logging.getLogger(__name__)
 
@@ -58,11 +58,11 @@ def _necesita_actualizacion(partidos: list, ahora: datetime) -> bool:
 
 
 def _hay_algo_para_actualizar(db) -> bool:
-    hoy = ahora_partidos().date()
+    hoy = fecha_hoy_partidos()
+    inicio, fin = rango_utc_dia_partidos(hoy)
     partidos_hoy = (
         db.query(Partido)
-        .filter(Partido.fecha >= datetime.combine(hoy, datetime.min.time()),
-                Partido.fecha < datetime.combine(hoy, datetime.min.time()) + timedelta(days=1))
+        .filter(Partido.fecha >= inicio, Partido.fecha < fin)
         .all()
     )
     return _necesita_actualizacion(partidos_hoy, ahora_partidos())

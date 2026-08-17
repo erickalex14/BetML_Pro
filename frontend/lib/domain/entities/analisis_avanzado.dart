@@ -71,16 +71,18 @@ class KellyMercado {
   // texto trazable: de dónde sale el edge, no una afirmación sin números
   String get porQue => sinCuota
       ? 'Probabilidad del modelo ${(probabilidad * 100).toStringAsFixed(0)}% — '
-        'sin cuota de bookmaker disponible para este mercado'
+          'sin cuota de bookmaker disponible para este mercado'
       : 'Probabilidad del modelo ${(probabilidad * 100).toStringAsFixed(0)}% '
-        'vs ${(probImplicita * 100).toStringAsFixed(0)}% implícita por la cuota '
-        '(${cuota.toStringAsFixed(2)}) → edge ${(edge * 100).toStringAsFixed(1)}pp';
+          'vs ${(probImplicita * 100).toStringAsFixed(0)}% implícita por la cuota '
+          '(${cuota.toStringAsFixed(2)}) → edge ${(edge * 100).toStringAsFixed(1)}pp';
 
   // Categoría por prefijo de clave — mismo vocabulario que
   // construir_lista_mercados() en el backend, no una lista aparte a
   // mantener sincronizada a mano.
   String get categoria {
-    if (clave == 'local' || clave == 'empate' || clave == 'visitante') return 'Resultado del partido';
+    if (clave == 'local' || clave == 'empate' || clave == 'visitante') {
+      return 'Resultado del partido';
+    }
     if (clave.startsWith('handicap_')) return 'Hándicap';
     if (clave.startsWith('goles_1t_')) return 'Goles primer tiempo';
     if (clave.startsWith('goles_equipo_')) return 'Goles por equipo';
@@ -95,9 +97,18 @@ class KellyMercado {
   }
 
   static const List<String> ordenCategorias = [
-    'Resultado del partido', 'Hándicap', 'Goles totales', 'Goles por equipo',
-    'Ambos equipos anotan', 'Córners', 'Tarjetas', 'Tarjetas rojas',
-    'Resultado primer tiempo', 'Goles primer tiempo', 'Resultado segundo tiempo', 'Otros',
+    'Resultado del partido',
+    'Hándicap',
+    'Goles totales',
+    'Goles por equipo',
+    'Ambos equipos anotan',
+    'Córners',
+    'Tarjetas',
+    'Tarjetas rojas',
+    'Resultado primer tiempo',
+    'Goles primer tiempo',
+    'Resultado segundo tiempo',
+    'Otros',
   ];
 }
 
@@ -163,8 +174,29 @@ class JugadorMercado {
 class JugadoresPartido {
   final List<JugadorMercado> local;
   final List<JugadorMercado> visitante;
+  final List<MercadoJugadorDisponible> mercados;
 
-  const JugadoresPartido({required this.local, required this.visitante});
+  const JugadoresPartido({
+    required this.local,
+    required this.visitante,
+    this.mercados = const [],
+  });
 
   bool get vacio => local.isEmpty && visitante.isEmpty;
+}
+
+class MercadoJugadorDisponible {
+  final String clave;
+  final String mercado;
+  final String jugador;
+  final double probabilidad;
+  final int nPartidosHistorial;
+
+  const MercadoJugadorDisponible({
+    required this.clave,
+    required this.mercado,
+    required this.jugador,
+    required this.probabilidad,
+    required this.nPartidosHistorial,
+  });
 }

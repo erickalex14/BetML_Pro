@@ -10,6 +10,7 @@ import '../presentation/screens/recomendadas_screen.dart';
 import '../presentation/screens/parlay_screen.dart';
 import '../presentation/screens/analizar_captura_screen.dart';
 import '../presentation/providers/auth_provider.dart';
+import '../presentation/widgets/design_system.dart';
 
 GoRouter buildRouter(AuthProvider auth) => GoRouter(
       initialLocation: '/',
@@ -28,12 +29,17 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         ),
         GoRoute(
           path: '/',
-          builder: (ctx, state) => const HomeScreen(),
+          builder: (ctx, state) => const AppRootBackGuard(
+            isHome: true,
+            child: HomeScreen(),
+          ),
         ),
         GoRoute(
           path: '/partido/:id',
-          builder: (ctx, state) => DetalleScreen(
-            partidoId: int.parse(state.pathParameters['id']!),
+          builder: (ctx, state) => AppSecondaryBackGuard(
+            child: DetalleScreen(
+              partidoId: int.parse(state.pathParameters['id']!),
+            ),
           ),
         ),
         GoRoute(
@@ -48,7 +54,9 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         ),
         GoRoute(
           path: '/perfil',
-          builder: (ctx, state) => const PerfilScreen(),
+          builder: (ctx, state) => const AppSecondaryBackGuard(
+            child: PerfilScreen(),
+          ),
         ),
         GoRoute(
           path: '/predicciones',
@@ -59,12 +67,38 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           builder: (ctx, state) => const RecomendadasScreen(),
         ),
         GoRoute(
+          path: '/oportunidades',
+          builder: (ctx, state) => const AppRootBackGuard(
+            isHome: false,
+            child: RecomendadasScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/portafolio',
+          builder: (ctx, state) => const AppRootBackGuard(
+            isHome: false,
+            child: MisPrediccionesScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/rendimiento',
+          builder: (ctx, state) => const AppRootBackGuard(
+            isHome: false,
+            child: StatsScreen(),
+          ),
+        ),
+        GoRoute(
           path: '/parlay',
-          builder: (ctx, state) => const ParlayScreen(),
+          builder: (ctx, state) => const AppSecondaryBackGuard(
+            fallbackRoute: '/portafolio',
+            child: ParlayScreen(),
+          ),
         ),
         GoRoute(
           path: '/analizar-captura',
-          builder: (ctx, state) => const AnalizarCapturaScreen(),
+          builder: (ctx, state) => const AppSecondaryBackGuard(
+            child: AnalizarCapturaScreen(),
+          ),
         ),
       ],
     );

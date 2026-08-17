@@ -19,6 +19,7 @@ class Partido {
   final int       temporada;
   final String?   jornada;
   final Prediccion? prediccion;
+  final DisponibilidadPrediccion? disponibilidadPrediccion;
 
   const Partido({
     required this.id,
@@ -38,6 +39,7 @@ class Partido {
     required this.temporada,
     this.jornada,
     this.prediccion,
+    this.disponibilidadPrediccion,
   });
 
   // lógica pura del dominio
@@ -68,4 +70,22 @@ class Partido {
     if (minuto != null) return "$minuto'";
     return estado;
   }
+}
+
+class DisponibilidadPrediccion {
+  final String codigo;
+  final String calidad;
+  final int localPartidosLocalia;
+  final int visitantePartidosLocalia;
+  final int localPartidosGenerales;
+  final int visitantePartidosGenerales;
+
+  const DisponibilidadPrediccion({
+    required this.codigo,
+    required this.calidad,
+    required this.localPartidosLocalia,
+    required this.visitantePartidosLocalia,
+    required this.localPartidosGenerales,
+    required this.visitantePartidosGenerales,
+  });
 }

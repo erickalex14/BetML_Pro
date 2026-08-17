@@ -32,25 +32,15 @@ class ParlayRequest(BaseModel):
 
 def _correr_montecarlo_partido(db: Session, partido, pred: dict,
                                 n_simulaciones: int = 10000) -> tuple:
-    """Corre Monte Carlo para un partido — xG de Sofascore si está
-    disponible (post-partido, útil para backtesting), si no lo estima
-    desde las probabilidades del modelo. Corners/tarjetas: promedio de
+    """Corre Monte Carlo para un partido con datos anteriores al inicio.
+
+    El xG del propio partido nunca entra aquí: después de comenzar sería
+    fuga de información y reconstruiría recomendaciones que no existían
+    antes del kickoff. Corners/tarjetas: promedio de
     los últimos 5 partidos de cada equipo (sin leakage, disponible
     también para partidos futuros). Devuelve (resultado_mc, fuente_xg)."""
     from backend.models.montecarlo import simular_partido
     from backend.features.calculador import calcular_stats_sofascore
-
-    stats = partido.stats_sofascore
-    if isinstance(stats, list):
-        stats = stats[0] if stats else None
-
-    if stats and stats.xg_local and stats.xg_visitante:
-        xg_local, xg_visit = stats.xg_local, stats.xg_visitante
-        fuente_xg = "Sofascore"
-    else:
-        xg_local = max(0.3, pred.get("prob_local", 0.33) * 2.5)
-        xg_visit = max(0.3, pred.get("prob_visitante", 0.33) * 2.5)
-        fuente_xg = "Estimado desde probabilidades ML"
 
     sf_local = calcular_stats_sofascore(db, partido.equipo_local_id, partido.fecha, es_local=True)
     sf_visit = calcular_stats_sofascore(db, partido.equipo_visit_id, partido.fecha, es_local=False)
@@ -59,9 +49,13 @@ def _correr_montecarlo_partido(db: Session, partido, pred: dict,
     # muy ruidoso y en rachas extremas mandaba lambdas absurdos (ver
     # backend/features/medias_liga.py — con PSG daba 85% al Over 11.5
     # córners cuando la frecuencia real es 27%).
-    from backend.features.medias_liga import medias_globales, encoger
+    from backend.features.medias_liga import medias_globales, encoger, estimar_xg_prepartido
     m = medias_globales(db)
     n_local, n_visit = sf_local["n_con_stats"], sf_visit["n_con_stats"]
+
+    # Nunca derivar goles de P(local)+P(visitante): eso convierte
+    # P(empate) en un sesgo mecánico hacia los unders.
+    xg_local, xg_visit, fuente_xg = estimar_xg_prepartido(sf_local, sf_visit, m)
 
     mc = simular_partido(
         xg_local=xg_local,
@@ -186,7 +180,7 @@ def kelly_partido(
     de hasta 14 bookmakers vía API-Football gratis), se usan como base
     automáticamente — la mejor cuota disponible por mercado. Cualquier
     odds_* que pases por query param pisa esa cuota automática para ese
-    mercado puntual (útil si querés forzar la cuota de UNA casa en
+    mercado puntual (útil para forzar la cuota de UNA casa en
     particular, o si el partido es muy lejano y todavía no tiene cuotas
     guardadas). Mercados: odds_local/empate/visitante, odds_goles_over_2_5,
     odds_btts_si, odds_corners_over_9_5, odds_tarjetas_over_2_5, etc.
@@ -229,7 +223,7 @@ def kelly_partido(
                 pass
 
     montecarlo = None
-    if incluir_mercados_extra:
+    if incluir_mercados_extra and pred.get("origen_prediccion") != "mercado":
         montecarlo, _ = _correr_montecarlo_partido(db, partido, pred)
 
     calibracion = cargar_calibracion()
@@ -242,6 +236,17 @@ def kelly_partido(
         montecarlo=montecarlo,
         calibracion=calibracion,
     )
+
+    if pred.get("origen_prediccion") == "mercado":
+        # No se puede descubrir valor comparando una cuota consigo misma.
+        for mercado in kelly["todos_mercados"]:
+            mercado.update({
+                "ev": 0.0, "edge": 0.0, "es_value_bet": False,
+                "stake_pct": 0.0, "stake_units": 0.0,
+                "mensaje": "Referencia de mercado; falta una señal independiente para Kelly",
+            })
+        kelly["value_bets"] = []
+        kelly["n_value_bets"] = 0
 
     if guardar and kelly["value_bets"]:
         from backend.repositories.prediccion_repo import PrediccionRepository
@@ -303,7 +308,8 @@ def guardar_mercados(
         raise HTTPException(status_code=422, detail="Sin historial suficiente para predecir")
 
     odds = obtener_mejores_odds(db, partido_id)
-    montecarlo, _ = _correr_montecarlo_partido(db, partido, pred)
+    montecarlo = None if pred.get("origen_prediccion") == "mercado" else \
+        _correr_montecarlo_partido(db, partido, pred)[0]
     todos = analizar_mercados_kelly(prediccion=pred, odds=odds, montecarlo=montecarlo)["todos_mercados"]
 
     por_clave = {m["clave"]: m for m in todos}
@@ -449,14 +455,9 @@ def kelly_portafolio_partido(
             except ValueError:
                 pass
 
-    stats = partido.stats_sofascore
-    if isinstance(stats, list):
-        stats = stats[0] if stats else None
-    if stats and stats.xg_local and stats.xg_visitante:
-        xg_local, xg_visit = stats.xg_local, stats.xg_visitante
-    else:
-        xg_local = max(0.3, pred.get("prob_local", 0.33) * 2.5)
-        xg_visit = max(0.3, pred.get("prob_visitante", 0.33) * 2.5)
+    mc_base, _ = _correr_montecarlo_partido(db, partido, pred, n_simulaciones)
+    xg_local = mc_base["xg_local"]
+    xg_visit = mc_base["xg_visitante"]
 
     mc = simular_partido(xg_local, xg_visit, n_simulaciones=n_simulaciones, devolver_escenarios=True)
     gl, gv = mc["_escenarios"]["goles_local"], mc["_escenarios"]["goles_visit"]
@@ -483,7 +484,7 @@ def kelly_portafolio_partido(
     if not mercados:
         raise HTTPException(
             status_code=422,
-            detail="Sin cuotas — pasá al menos odds_local/empate/visitante o odds_goles_*/odds_btts_*"
+            detail="Sin cuotas: ingresa al menos odds_local/empate/visitante u odds_goles_*/odds_btts_*"
         )
 
     portafolio = kelly_portfolio(mercados, fraccion=fraccion)
@@ -534,6 +535,8 @@ def apuesta_combinada(
     from backend.models.parlay import calcular_parlay_kelly
     from backend.models.kelly import construir_lista_mercados
     from backend.models.odds_service import obtener_mejores_odds
+    from backend.models.jugadores_montecarlo import (
+        mercados_jugadores_calculados, simular_jugadores_partido)
 
     if len(body.selecciones) < 2:
         raise HTTPException(status_code=422, detail="Un parlay necesita 2+ selecciones")
@@ -548,23 +551,29 @@ def apuesta_combinada(
             raise HTTPException(status_code=404, detail=f"Partido {sel.partido_id} no encontrado")
 
         pred = service.predecir(partido)
-        if not pred:
+        if not pred and not sel.mercado.startswith("jugador_"):
             raise HTTPException(
                 status_code=422,
                 detail=f"Sin historial suficiente para partido {sel.partido_id}")
 
-        montecarlo, _ = _correr_montecarlo_partido(db, partido, pred)
-        mercados_disponibles = construir_lista_mercados(pred, montecarlo)
-
         odds_key_buscada = f"odds_{sel.mercado}"
-        encontrado = next((m for m in mercados_disponibles if m[2] == odds_key_buscada), None)
+        if sel.mercado.startswith("jugador_"):
+            mercados_jugador = mercados_jugadores_calculados(
+                simular_jugadores_partido(db, partido, 10000))
+            jugador = next((m for m in mercados_jugador if m["clave"] == sel.mercado), None)
+            encontrado = ((jugador["mercado"], jugador["probabilidad"], None, None)
+                          if jugador else None)
+        else:
+            montecarlo, _ = _correr_montecarlo_partido(db, partido, pred)
+            mercados_disponibles = construir_lista_mercados(pred, montecarlo)
+            encontrado = next((m for m in mercados_disponibles if m[2] == odds_key_buscada), None)
         if encontrado is None:
             raise HTTPException(
                 status_code=422,
                 detail=f"mercado inválido para partido {sel.partido_id}: {sel.mercado!r}")
 
         cuota = sel.cuota
-        if cuota is None:
+        if cuota is None and not sel.mercado.startswith("jugador_"):
             cuota = obtener_mejores_odds(db, sel.partido_id).get(odds_key_buscada)
         if cuota is None:
             raise HTTPException(
@@ -618,7 +627,7 @@ async def analizar_captura(
     usuario: Usuario = Depends(get_usuario_actual),
 ):
     """
-    Subís una captura de pantalla de un parley/bet builder — el sistema
+    Se carga una captura de pantalla de un parlay/bet builder y el sistema
     lee equipos y mercados (OCR local, gratis, sin API externa — ver
     parser_imagen.py) y devuelve NUESTRA probabilidad para cada
     selección detectada, con recomendación.
@@ -640,7 +649,7 @@ async def analizar_captura(
         "image/webp": ".webp",
     }
     if imagen.content_type not in sufijos:
-        raise HTTPException(status_code=415, detail="Formato no permitido: usá PNG, JPEG o WEBP")
+        raise HTTPException(status_code=415, detail="Formato no permitido: utiliza PNG, JPEG o WEBP")
 
     total = 0
     excede_tope = False
@@ -747,11 +756,14 @@ def mercados_jugadores(
         raise HTTPException(status_code=404, detail="Partido no encontrado")
 
     resultado = simular_jugadores_partido(db, partido, n_simulaciones)
+    from backend.models.jugadores_montecarlo import mercados_jugadores_calculados
 
     return {
         "partido_id": partido_id,
         "n_simulaciones": n_simulaciones,
         "jugadores": resultado,
+        "mercados": mercados_jugadores_calculados(resultado),
+        "nota_cuotas": "Ingresa la cuota de tu casa para calcular EV y Kelly.",
     }
 
 
@@ -767,7 +779,7 @@ def predicciones_recomendadas(
     Escanea TODOS los partidos de HOY con predicción + cuotas guardadas
     y arma tres cosas, cada una partida en "fijas" (alta probabilidad,
     para apostar con poco riesgo) y "sonadoras" (cuota alta, probabilidad
-    menor, pero jugosas si pegan — todas siguen siendo value bets, con
+    menor y mayor riesgo — todas siguen siendo value bets, con
     edge positivo, no son apuestas al azar):
       1. apuestas_individuales — las mejores value bets por EV, de
          cualquier mercado y cualquier partido (mismo cálculo que /kelly,
@@ -786,11 +798,21 @@ def predicciones_recomendadas(
     cachear por un rato es la mejora obvia; no se hizo de entrada
     porque no hay todavía evidencia de que haga falta.
     """
-    # ponytail: corte fijo — no hay curva de "qué tan segura se siente
-    # una probabilidad" ajustada a datos propios todavía, 0.55 es el
-    # punto donde el modelo ya favorece claramente un lado.
-    UMBRAL_FIJA_PROB = 0.55
-    from datetime import date
+    from datetime import timedelta
+    from backend.pipeline.config import fecha_hoy_partidos
+    from backend.services.cache import guardar_cache, obtener_cache
+    hoy = fecha_hoy_partidos()
+    usa_cache = (bankroll == 1000.0 and fraccion == 0.25 and
+                 n_simulaciones == 6000 and top_individuales == 15)
+    clave_cache = f"recomendadas:v2:{hoy}"
+    if usa_cache:
+        cache = obtener_cache(db, clave_cache)
+        if cache is not None:
+            return cache
+
+    # Guardia conservadora mientras se acumula un backtest walk-forward.
+    # El 55% anterior declaró 71% de media y acertó 20% el fin de semana.
+    UMBRAL_FIJA_PROB = 0.65
     from backend.repositories.partido_repo import PartidoRepository
     from backend.models.odds_service import obtener_mejores_odds
     from backend.models.kelly_portfolio import kelly_portfolio
@@ -798,6 +820,8 @@ def predicciones_recomendadas(
     from backend.models.montecarlo import simular_partido
     from backend.pipeline.config import LIGAS_SIN_HISTORIAL_ID
     from backend.db.modelos import Prediccion
+    from backend.models.jugadores_montecarlo import (
+        mercados_jugadores_calculados, simular_jugadores_partido)
 
     repo = PartidoRepository(db)
     # amistosos afuera: el modelo predice con la fuerza histórica REAL del
@@ -805,50 +829,67 @@ def predicciones_recomendadas(
     # — un "edge" gigante ahí es más probable que sea el modelo mal
     # calibrado para el contexto que una value bet real (visto en vivo:
     # 60pp de edge en un amistoso, número que no pasa el olfato)
-    partidos = [p for p in repo.get_por_fecha(date.today()) if p.liga_id not in LIGAS_SIN_HISTORIAL_ID]
+    partidos = [p for p in repo.get_por_fecha(hoy) if p.liga_id not in LIGAS_SIN_HISTORIAL_ID]
     service = PrediccionService(db)
     calibracion = cargar_calibracion()
 
     individuales = []
+    individuales_jugadores = []
     combinadas_partido = []
     mejor_por_partido = []  # una pata por partido, para armar los parlays
 
     for partido in partidos:
+        info_partido = {
+            "partido_id": partido.id,
+            "local": partido.equipo_local.nombre,
+            "visitante": partido.equipo_visitante.nombre,
+            "local_logo": partido.equipo_local.logo_url,
+            "visitante_logo": partido.equipo_visitante.logo_url,
+            "liga": partido.liga.nombre,
+            "liga_id": partido.liga_id,
+            "hora": partido.fecha.isoformat() if partido.fecha else None,
+        }
+        cerradas = {
+            fila.mercado: fila.acerto
+            for fila in db.query(Prediccion)
+                          .filter(Prediccion.partido_id == partido.id)
+                          .all()
+        }
+        simulacion_jugadores = simular_jugadores_partido(db, partido, n_simulaciones)
+        for mercado_jugador in mercados_jugadores_calculados(simulacion_jugadores):
+            individuales_jugadores.append({
+                **info_partido,
+                **mercado_jugador,
+                "acerto": cerradas.get(mercado_jugador["clave"]),
+                "estado_partido": partido.estado,
+            })
+
         pred = service.predecir(partido)
         if not pred:
+            continue
+        if pred.get("origen_prediccion") == "mercado":
+            # Las recomendadas requieren una señal independiente de la cuota;
+            # una probabilidad derivada de esa misma cuota no demuestra edge.
             continue
         odds = obtener_mejores_odds(db, partido.id)
         if not odds:
             continue
 
-        montecarlo, _ = _correr_montecarlo_partido(db, partido, pred, n_simulaciones)
+        montecarlo, fuente_xg = _correr_montecarlo_partido(db, partido, pred, n_simulaciones)
         kelly = analizar_mercados_kelly(
             prediccion=pred, odds=odds, bankroll=bankroll, fraccion=fraccion,
             montecarlo=montecarlo, calibracion=calibracion,
         )
 
-        info_partido = {
-            "partido_id": partido.id,
-            "local": partido.equipo_local.nombre,
-            "visitante": partido.equipo_visitante.nombre,
-            "liga": partido.liga.nombre,
-        }
-
         # Estado real de cada mercado si ya se guardó y cerró — es lo que
         # permite tachar en pantalla las que fallaron en vez de mostrar
         # eternamente la recomendación como si siguiera vigente.
-        cerradas = {
-            p.mercado: p.acerto
-            for p in db.query(Prediccion)
-                      .filter(Prediccion.partido_id == partido.id)
-                      .all()
-        }
-
         for vb in kelly["value_bets"]:
             individuales.append({
                 **info_partido, **vb,
                 "acerto": cerradas.get(vb["clave"]),   # None = todavía sin resolver
                 "estado_partido": partido.estado,
+                "fuente_xg": fuente_xg,
             })
 
         if kelly["value_bets"]:
@@ -859,19 +900,18 @@ def predicciones_recomendadas(
                 "clave": mejor["clave"],
                 "prob": mejor["probabilidad"],
                 "cuota": mejor["cuota"],
+                "apta_fija": (
+                    mejor["probabilidad"] >= UMBRAL_FIJA_PROB and
+                    (mejor["clave"] in {"local", "empate", "visitante"} or
+                     fuente_xg == "Histórico xG prepartido con regresión a la media")
+                ),
             })
 
         # simulación aparte con escenarios crudos — igual que hace
         # /kelly/portafolio (montecarlo de arriba no los trae, se usa
         # para el resto de los mercados vía analizar_mercados_kelly)
-        stats = partido.stats_sofascore
-        if isinstance(stats, list):
-            stats = stats[0] if stats else None
-        if stats and stats.xg_local and stats.xg_visitante:
-            xg_local, xg_visit = stats.xg_local, stats.xg_visitante
-        else:
-            xg_local = max(0.3, pred.get("prob_local", 0.33) * 2.5)
-            xg_visit = max(0.3, pred.get("prob_visitante", 0.33) * 2.5)
+        xg_local = montecarlo["xg_local"]
+        xg_visit = montecarlo["xg_visitante"]
         mc_escenarios = simular_partido(xg_local, xg_visit, n_simulaciones=n_simulaciones, devolver_escenarios=True)
         gl = mc_escenarios["_escenarios"]["goles_local"]
         gv = mc_escenarios["_escenarios"]["goles_visit"]
@@ -893,11 +933,31 @@ def predicciones_recomendadas(
         if mercados_portafolio:
             portafolio = kelly_portfolio(mercados_portafolio, fraccion=fraccion)
             if portafolio["stake_total_pct"] > 0:
-                combinadas_partido.append({**info_partido, "portafolio": portafolio})
+                combinadas_partido.append({
+                    **info_partido,
+                    "portafolio": portafolio,
+                    "fuente_xg": fuente_xg,
+                })
 
     individuales.sort(key=lambda m: m["ev"], reverse=True)
-    individuales_fijas = [m for m in individuales if m["probabilidad"] >= UMBRAL_FIJA_PROB][:top_individuales]
-    individuales_sonadoras = [m for m in individuales if m["probabilidad"] < UMBRAL_FIJA_PROB][:top_individuales]
+    def _apta_fija_individual(m: dict) -> bool:
+        if m["probabilidad"] < UMBRAL_FIJA_PROB:
+            return False
+        if m["clave"] in {"local", "empate", "visitante"}:
+            return m.get("factor_confianza", 0) >= 0.75
+        return m.get("fuente_xg") == "Histórico xG prepartido con regresión a la media"
+
+    individuales_fijas = [m for m in individuales if _apta_fija_individual(m)][:top_individuales]
+    individuales_sonadoras = [m for m in individuales if not _apta_fija_individual(m)][:top_individuales]
+    individuales_jugadores.sort(key=lambda m: m["probabilidad"], reverse=True)
+    jugadores_fijas = [
+        m for m in individuales_jugadores
+        if m["probabilidad"] >= 0.65 and m.get("n_partidos_historial", 0) >= 5
+    ][:top_individuales]
+    jugadores_sonadoras = [
+        m for m in individuales_jugadores
+        if m not in jugadores_fijas and m["probabilidad"] >= 0.30
+    ][:top_individuales]
 
     combinadas_partido.sort(key=lambda c: c["portafolio"]["ev_portafolio"], reverse=True)
 
@@ -905,8 +965,12 @@ def predicciones_recomendadas(
         mercados = c["portafolio"]["mercados"]
         return sum(m["probabilidad"] for m in mercados) / len(mercados) if mercados else 0.0
 
-    combinadas_fijas = [c for c in combinadas_partido if _prob_promedio_portafolio(c) >= UMBRAL_FIJA_PROB][:5]
-    combinadas_sonadoras = [c for c in combinadas_partido if _prob_promedio_portafolio(c) < UMBRAL_FIJA_PROB][:5]
+    combinadas_fijas = [
+        c for c in combinadas_partido
+        if (_prob_promedio_portafolio(c) >= UMBRAL_FIJA_PROB and
+            c.get("fuente_xg") == "Histórico xG prepartido con regresión a la media")
+    ][:5]
+    combinadas_sonadoras = [c for c in combinadas_partido if c not in combinadas_fijas][:5]
 
     def _armar_parlays(candidatos: list) -> list:
         parlays = []
@@ -939,12 +1003,17 @@ def predicciones_recomendadas(
         # Fijas: arma con las patas de MAYOR probabilidad (mismo criterio
         # de antes). Soñadoras: con las de MAYOR cuota — combos de
         # underdogs con edge positivo, cuota combinada mucho más jugosa.
-        parlays_fijas = _armar_parlays(sorted(mejor_por_partido, key=lambda m: m["prob"], reverse=True))
+        candidatos_fijas = [m for m in mejor_por_partido if m["apta_fija"]]
+        parlays_fijas = _armar_parlays(sorted(candidatos_fijas, key=lambda m: m["prob"], reverse=True))
         parlays_sonadoras = _armar_parlays(sorted(mejor_por_partido, key=lambda m: m["cuota"], reverse=True))
 
-    return {
-        "fecha": str(date.today()),
+    respuesta = {
+        "fecha": str(hoy),
         "apuestas_individuales": {"fijas": individuales_fijas, "sonadoras": individuales_sonadoras},
+        "mercados_jugadores": {"fijas": jugadores_fijas, "sonadoras": jugadores_sonadoras},
         "combinadas_mismo_partido": {"fijas": combinadas_fijas, "sonadoras": combinadas_sonadoras},
         "parlays_sugeridos": {"fijas": parlays_fijas, "sonadoras": parlays_sonadoras},
     }
+    if usa_cache:
+        guardar_cache(db, clave_cache, respuesta, timedelta(minutes=30))
+    return respuesta

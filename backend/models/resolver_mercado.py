@@ -13,7 +13,7 @@ partido), esos mercados quedan sin resolver (None) en vez de asumir
 cualquier cosa.
 """
 import re
-from backend.db.modelos import Partido, EstadisticaSofascore
+from backend.db.modelos import Partido, EstadisticaSofascore, EstadisticaJugador
 
 
 def _stats(db, partido: Partido) -> EstadisticaSofascore | None:
@@ -35,6 +35,27 @@ def resolver_mercado(db, partido: Partido, mercado: str) -> bool | None:
 
     gl, gv = partido.goles_local, partido.goles_visitante
     goles_total = gl + gv
+
+    # Mercados individuales: jugador_{sofascore_id}_{stat}_over_{linea}.
+    m = re.match(r"jugador_(\d+)_(tiros_arco|tiros|goles|asistencias|pases|entradas|atajadas)_over_([\d_]+)$", mercado)
+    if m:
+        jugador_id, categoria, linea_clave = m.groups()
+        stat = db.query(EstadisticaJugador).filter(
+            EstadisticaJugador.partido_id == partido.id,
+            EstadisticaJugador.sofascore_jugador_id == int(jugador_id),
+        ).one_or_none()
+        if stat is None:
+            return None
+        campo = {
+            "tiros": "tiros", "tiros_arco": "tiros_arco", "goles": "goles",
+            "asistencias": "asistencias", "pases": "pases_completados",
+            "entradas": "duelos_ganados", "atajadas": "atajadas",
+        }[categoria]
+        real = getattr(stat, campo)
+        if real is None:
+            real = 0  # Sofascore omite conteos en cero.
+        linea = float(linea_clave.replace("_", "."))
+        return real > linea
 
     # 1X2
     if mercado in ("local", "empate", "visitante"):

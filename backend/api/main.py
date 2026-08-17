@@ -3,11 +3,13 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from backend.db.database import crear_tablas
+from backend.db.migraciones import aplicar_migraciones
 from backend.core.config import get_settings
 from backend.core.deps import get_usuario_actual
 from backend.api.routes import partidos, predicciones, stats, auth
@@ -23,6 +25,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,6 +45,7 @@ def startup():
     if not settings.debug and settings.jwt_secret_key == "dev-secret-cambiar-en-produccion":
         raise RuntimeError("JWT_SECRET_KEY insegura: configurá una clave de producción")
     crear_tablas()
+    aplicar_migraciones()
 
 
 @app.exception_handler(Exception)

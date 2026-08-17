@@ -50,7 +50,7 @@ _ESTADOS_ELEGIBLES = ("NS", "1H", "HT", "2H", "ET")
 VENTANA_MINUTOS = 90
 
 
-def _partidos_a_anclar(db) -> list:
+def _partidos_a_anclar(db, dias_adelante: int = 0) -> list:
     """TODOS los partidos de hoy sin sofascore_id — no solo los de la
     ventana de 90 min. El anclaje cuesta un fetch por (liga, fecha), no
     uno por partido, así que anclar el día entero sale prácticamente lo
@@ -60,7 +60,7 @@ def _partidos_a_anclar(db) -> list:
     ventana sola quedaba 4/33 anclados)."""
     ahora = ahora_partidos()
     inicio = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
-    fin = inicio + timedelta(days=1)
+    fin = inicio + timedelta(days=dias_adelante + 1)
     return (
         db.query(Partido)
         .filter(
@@ -182,6 +182,17 @@ UMBRAL_CON_VENTAJA = 0.45
 VENTAJA_MINIMA = 0.15
 
 
+def _aceptar_match(mejor: float, segundo: float,
+                   lado_mas_fuerte: float) -> bool:
+    if mejor >= UMBRAL_SIMILITUD:
+        return True
+    # Si ambos nombres son apenas parecidos, una gran ventaja sobre otros
+    # eventos no basta: puede que el evento correcto ni esté en la lista.
+    return (mejor >= UMBRAL_CON_VENTAJA
+            and lado_mas_fuerte >= UMBRAL_SIMILITUD
+            and (mejor - segundo) >= VENTAJA_MINIMA)
+
+
 def _nombre_coincide(a: str, b: str) -> bool:
     """Solo para casos claros (tests y uso puntual). El anclaje real usa
     _intentar_match, que además compara contra el resto de candidatos."""
@@ -197,6 +208,7 @@ def _intentar_match(db, partido, eventos: list, ya_usados: set) -> bool:
         return False
 
     mejor, mejor_puntaje, mejor_nombres = None, 0.0, ("", "")
+    mejor_lado_fuerte = 0.0
     segundo_puntaje = 0.0
     for evento in eventos:
         sofascore_id = evento.get("id")
@@ -218,19 +230,19 @@ def _intentar_match(db, partido, eventos: list, ya_usados: set) -> bool:
         away = evento.get("awayTeam", {}).get("name", "")
         # el peor de los dos lados manda: un nombre clavado y el otro
         # que no pega es un partido distinto, no una coincidencia a medias
-        puntaje = min(_similitud(local.nombre, home), _similitud(visit.nombre, away))
+        score_local = _similitud(local.nombre, home)
+        score_visit = _similitud(visit.nombre, away)
+        puntaje = min(score_local, score_visit)
         if puntaje > mejor_puntaje:
             segundo_puntaje = mejor_puntaje
             mejor, mejor_puntaje, mejor_nombres = sofascore_id, puntaje, (home, away)
+            mejor_lado_fuerte = max(score_local, score_visit)
         elif puntaje > segundo_puntaje:
             segundo_puntaje = puntaje
 
     if mejor is None:
         return False
-    claro = mejor_puntaje >= UMBRAL_SIMILITUD
-    unico = (mejor_puntaje >= UMBRAL_CON_VENTAJA
-             and (mejor_puntaje - segundo_puntaje) >= VENTAJA_MINIMA)
-    if not (claro or unico):
+    if not _aceptar_match(mejor_puntaje, segundo_puntaje, mejor_lado_fuerte):
         return False
 
     # guard final: puede que otro Partido YA guardado (no solo los de
@@ -329,10 +341,10 @@ def _anclar_sofascore_ids(db, cliente, partidos: list) -> None:
     db.commit()
 
 
-def correr_job_alineaciones():
+def correr_job_alineaciones(dias_anclaje: int = 0):
     db = SessionLocal()
     try:
-        a_anclar = _partidos_a_anclar(db)
+        a_anclar = _partidos_a_anclar(db, dias_anclaje)
         elegibles = _partidos_elegibles(db)
         if not a_anclar and not elegibles:
             log.info("Sin partidos por anclar ni por confirmar alineación")

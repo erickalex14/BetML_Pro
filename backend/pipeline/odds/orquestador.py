@@ -36,6 +36,7 @@ from backend.db.modelos import Partido, Odds
 from backend.pipeline.config import ahora_partidos
 
 log = logging.getLogger(__name__)
+MERCADOS_1X2 = {"odds_local", "odds_empate", "odds_visitante"}
 
 
 def partidos_sin_cuotas(db, dias_adelante: int = 2) -> list:
@@ -43,7 +44,14 @@ def partidos_sin_cuotas(db, dias_adelante: int = 2) -> list:
     ahora = ahora_partidos()
     inicio = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    con_cuotas = {fila.partido_id for fila in db.query(Odds.partido_id).distinct().all()}
+    filas = db.query(Odds.partido_id, Odds.bookmaker, Odds.mercado).all()
+    mercados = {}
+    for partido_id, casa, mercado in filas:
+        mercados.setdefault((partido_id, casa), set()).add(mercado)
+    con_cuotas = {
+        partido_id for (partido_id, _), claves in mercados.items()
+        if MERCADOS_1X2.issubset(claves)
+    }
 
     partidos = (
         db.query(Partido)
@@ -58,8 +66,33 @@ def partidos_sin_cuotas(db, dias_adelante: int = 2) -> list:
     return [p for p in partidos if p.id not in con_cuotas]
 
 
+def diagnosticar_cobertura(db, dias_adelante: int = 2) -> dict:
+    inicio = ahora_partidos().replace(hour=0, minute=0, second=0, microsecond=0)
+    partidos = db.query(Partido).filter(
+        Partido.estado.in_(["NS", "TBD"]), Partido.fecha >= inicio,
+        Partido.fecha <= inicio + timedelta(days=dias_adelante),
+    ).all()
+    filas = db.query(Odds.partido_id, Odds.bookmaker, Odds.mercado).all()
+    por_partido, por_casa = {}, {}
+    for partido_id, casa, mercado in filas:
+        por_partido.setdefault(partido_id, set()).add(mercado)
+        por_casa.setdefault((partido_id, casa), set()).add(mercado)
+    completos = {pid for (pid, _), ms in por_casa.items()
+                 if MERCADOS_1X2.issubset(ms)}
+    return {
+        "total": len(partidos),
+        "1x2_completo": sum(p.id in completos for p in partidos),
+        "cuotas_parciales": sum(p.id in por_partido and p.id not in completos for p in partidos),
+        "sin_cuotas": sum(p.id not in por_partido for p in partidos),
+        "sin_sofascore_id": sum(p.sofascore_id is None for p in partidos),
+    }
+
+
 def _fuente_sofascore(db, partidos) -> int:
+    from backend.pipeline.sofascore.job_alineaciones import correr_job_alineaciones
     from backend.pipeline.sofascore.job_odds_sofascore import correr_job_odds_sofascore
+    # La cascada cotiza hoy + 2 días; primero ancla exactamente esa ventana.
+    correr_job_alineaciones(dias_anclaje=2)
     return correr_job_odds_sofascore()
 
 
@@ -106,6 +139,7 @@ def correr_orquestador_odds():
 
     db = SessionLocal()
     try:
+        log.info(f"Cobertura inicial: {diagnosticar_cobertura(db)}")
         for nombre, fuente in FUENTES:
             faltantes = partidos_sin_cuotas(db)
             if not faltantes:
@@ -120,8 +154,8 @@ def correr_orquestador_odds():
                 log.error(f"{nombre} falló: {e}")
 
         restantes = partidos_sin_cuotas(db)
-        total = len(partidos_sin_cuotas(db)) + db.query(Odds.partido_id).distinct().count()
         log.info(f"Quedaron {len(restantes)} partido(s) sin cuotas de ninguna fuente")
+        log.info(f"Cobertura final: {diagnosticar_cobertura(db)}")
         return len(restantes)
     finally:
         db.close()

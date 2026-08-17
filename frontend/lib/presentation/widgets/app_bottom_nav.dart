@@ -1,55 +1,78 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme.dart';
-import 'clay.dart';
+import 'prediction_coupon.dart';
 
-enum AppTab { partidos, recomendadas, predicciones, stats, perfil }
+enum AppTab { hoy, oportunidades, portafolio, rendimiento }
 
-// Nav clay — el segundo (y último) lugar donde se usa el tratamiento
-// claymorphism, para que siga leyéndose como acento y no como wallpaper.
 class AppBottomNav extends StatelessWidget {
   final AppTab current;
   const AppBottomNav({super.key, required this.current});
 
+  static const _destinos = <({
+    AppTab tab,
+    IconData icon,
+    IconData selected,
+    String label,
+    String route
+  })>[
+    (
+      tab: AppTab.hoy,
+      icon: Icons.today_outlined,
+      selected: Icons.today_rounded,
+      label: 'Hoy',
+      route: '/'
+    ),
+    (
+      tab: AppTab.oportunidades,
+      icon: Icons.radar_outlined,
+      selected: Icons.radar_rounded,
+      label: 'Oportunidades',
+      route: '/oportunidades'
+    ),
+    (
+      tab: AppTab.portafolio,
+      icon: Icons.bookmark_border_rounded,
+      selected: Icons.bookmark_rounded,
+      label: 'Portafolio',
+      route: '/portafolio'
+    ),
+    (
+      tab: AppTab.rendimiento,
+      icon: Icons.insights_outlined,
+      selected: Icons.insights_rounded,
+      label: 'Rendimiento',
+      route: '/rendimiento'
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: ClayContainer(
-        radius: 22,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _item(context, AppTab.partidos, Icons.receipt_long_outlined, 'Partidos', '/'),
-            _item(context, AppTab.recomendadas, Icons.auto_graph_rounded, 'Top', '/recomendadas'),
-            _item(context, AppTab.predicciones, Icons.bookmark_outline_rounded, 'Mías', '/predicciones'),
-            _item(context, AppTab.stats, Icons.show_chart_rounded, 'Stats', '/stats'),
-            _item(context, AppTab.perfil, Icons.person_outline_rounded, 'Perfil', '/perfil'),
-          ],
+    final index = _destinos.indexWhere((d) => d.tab == current);
+    return SizedBox(
+      height: 126,
+      child: Stack(children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: NavigationBar(
+            selectedIndex: index,
+            onDestinationSelected: (next) {
+              if (next != index) context.go(_destinos[next].route);
+            },
+            destinations: [
+              for (final d in _destinos)
+                NavigationDestination(
+                    icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selected),
+                    label: d.label,
+                    tooltip: d.label)
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _item(BuildContext context, AppTab tab, IconData icon, String label, String ruta) {
-    final c = context.colors;
-    final active = tab == current;
-    return GestureDetector(
-      onTap: active ? null : () => context.go(ruta),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: active ? c.pitch : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 19, color: active ? c.bg : c.textMuted),
-          const SizedBox(height: 3),
-          Text(label, style: TextStyle(fontSize: 9.5, color: active ? c.bg : c.textMuted)),
-        ]),
-      ),
+        const Positioned(
+            right: 18, top: 4, child: PredictionCouponBubble()),
+      ]),
     );
   }
 }

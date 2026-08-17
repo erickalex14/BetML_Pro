@@ -1,7 +1,8 @@
 """Tests de Monte Carlo — probabilidades tienen que sumar 1, Dixon-Coles
 tiene que mover la distribución en la dirección correcta."""
 import numpy as np
-from backend.models.montecarlo import simular_partido, _grid_marcadores, cargar_rho
+from backend.models.montecarlo import (
+    simular_partido, simular_con_prediccion, _grid_marcadores, cargar_rho)
 
 
 def test_1x2_suma_uno():
@@ -64,3 +65,15 @@ def test_escenarios_crudos_consistentes_con_agregados():
     esc = r["_escenarios"]
     assert len(esc["goles_local"]) == 5000
     assert abs(np.mean(esc["corners_total"]) - r["corners"]["promedio_total"]) < 0.01
+
+
+def test_fallback_1x2_no_convierte_empate_en_under():
+    empate_alto = simular_con_prediccion(
+        {"prob_local": 0.25, "prob_empate": 0.50, "prob_visitante": 0.25},
+        n_simulaciones=1000)
+    empate_bajo = simular_con_prediccion(
+        {"prob_local": 0.45, "prob_empate": 0.10, "prob_visitante": 0.45},
+        n_simulaciones=1000)
+
+    assert abs(empate_alto["xg_local"] + empate_alto["xg_visitante"] - 2.6) < 1e-9
+    assert abs(empate_bajo["xg_local"] + empate_bajo["xg_visitante"] - 2.6) < 1e-9

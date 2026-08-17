@@ -33,13 +33,12 @@ class PrediccionService:
         utilidad interna, potencialmente varias veces por partido; no
         cada llamada es "la predicción oficial del día". predecir_hoy()
         sí persiste — ese es el snapshot real a trackear."""
-        if not self.modelo_service.disponible:
-            log.warning("Modelo no disponible")
-            return None
-
         features = construir_features_partido(self.db, partido)
         if features is None:
-            log.warning(f"Sin Historial para partido {partido.id}")
+            return self._predecir_desde_mercado(partido, persistir)
+
+        if not self.modelo_service.disponible:
+            log.warning("Modelo no disponible")
             return None
 
         X   = pd.DataFrame([features])[FEATURES].fillna(0)
@@ -51,6 +50,14 @@ class PrediccionService:
         calibracion = cargar_calibracion()
         if calibracion is not None:
             proba = calibrar_probabilidades(calibracion, proba)
+
+        # Una muestra general usada como fallback permite predecir, pero no
+        # merece la misma certeza que cinco partidos en la localía exacta.
+        # Encogemos hacia 1/3 manteniendo suma=1, en vez de ocultar el partido
+        # o inventar features con cero.
+        calidad_datos = features.get("calidad_datos", "alta")
+        if calidad_datos == "moderada":
+            proba = 0.85 * np.asarray(proba) + 0.15 * np.array([1 / 3] * 3)
 
         prob_local = round(float(proba[0]), 4)
         prob_empate = round(float(proba[1]), 4)
@@ -94,13 +101,56 @@ class PrediccionService:
             "mercados_recomendados": mercados,
             "factores": factores,
             "resumen_h2h": resumen_h2h,
+            "calidad_datos": calidad_datos,
+            "origen_prediccion": "ml",
+            "diagnostico_historial": features.get("diagnostico_historial"),
+        }
+
+    def _predecir_desde_mercado(self, partido: Partido,
+                                persistir: bool = False) -> dict | None:
+        from backend.models.odds_service import probabilidades_mercado_1x2
+
+        probs = probabilidades_mercado_1x2(self.db, partido.id)
+        if probs is None:
+            log.warning(f"Sin historial ni cuotas 1X2 completas para partido {partido.id}")
+            return None
+        valores = [probs["prob_local"], probs["prob_empate"],
+                   probs["prob_visitante"]]
+        idx = int(np.argmax(valores))
+        labels = ["Local", "Empate", "Visitante"]
+        pred_label = labels[idx]
+        confianza = valores[idx]
+        if persistir:
+            self.prediccion_repo.crear(
+                partido_id=partido.id, mercado="1X2-mercado",
+                prediccion=pred_label, probabilidad=confianza,
+                confianza=confianza,
+            )
+        return {
+            "partido_id": partido.id,
+            **probs,
+            "prediccion": pred_label,
+            "confianza": confianza,
+            "mercados_recomendados": self._generar_mercados(*valores),
+            "factores": [{
+                "factor": "Cuotas 1X2",
+                "favorece": pred_label.lower(),
+                "texto": "Estimación basada únicamente en probabilidades implícitas del mercado, sin margen.",
+            }],
+            "resumen_h2h": None,
+            "calidad_datos": "solo_mercado",
+            "origen_prediccion": "mercado",
+            "diagnostico_historial": {
+                "codigo": "MARKET_ONLY",
+                "calidad": "solo_mercado",
+            },
         }
 
     def predecir_en_vivo(self, partido: Partido, n_simulaciones: int = 8000) -> dict | None:
         """Recalcula 1X2 y mercados de gol EN VIVO dado el marcador y
         minuto actuales — no es un modelo nuevo entrenado aparte: escala
         el xG pre-partido (Sofascore si ya hay stats en vivo, si no la
-        misma heurística prob→xG que /recomendadas) por el tiempo que
+        previsión histórica prepartido que /recomendadas) por el tiempo que
         falta, simula el resto del partido con Monte Carlo, y le suma el
         marcador ya jugado antes de calcular todo (ver goles_local_base/
         visit_base en montecarlo.simular_partido). None si el partido no
@@ -115,10 +165,17 @@ class PrediccionService:
         if not pred:
             return None
 
-        # xG esperado para el partido COMPLETO según el modelo, antes de
-        # que rodara la pelota.
-        xg_local_pre = max(0.3, pred["prob_local"] * 2.5)
-        xg_visit_pre = max(0.3, pred["prob_visitante"] * 2.5)
+        # xG esperado para el partido completo con información disponible
+        # antes del inicio. La probabilidad de empate no debe reducir el
+        # total esperado de goles.
+        from backend.features.calculador import calcular_stats_sofascore
+        from backend.features.medias_liga import medias_globales, estimar_xg_prepartido
+        sf_local = calcular_stats_sofascore(
+            self.db, partido.equipo_local_id, partido.fecha, es_local=True)
+        sf_visit = calcular_stats_sofascore(
+            self.db, partido.equipo_visit_id, partido.fecha, es_local=False)
+        xg_local_pre, xg_visit_pre, fuente_pre = estimar_xg_prepartido(
+            sf_local, sf_visit, medias_globales(self.db))
 
         # El xG de Sofascore en un partido EN CURSO es lo acumulado hasta
         # el minuto actual, no una previsión del partido entero. Tratarlo
@@ -138,10 +195,10 @@ class PrediccionService:
             peso_vivo = min(1.0, minutos_jugados / 90)
             xg_local_total = peso_vivo * ritmo_local + (1 - peso_vivo) * xg_local_pre
             xg_visit_total = peso_vivo * ritmo_visit + (1 - peso_vivo) * xg_visit_pre
-            fuente = "xG en vivo + previsión del modelo"
+            fuente = f"xG en vivo + {fuente_pre.lower()}"
         else:
             xg_local_total, xg_visit_total = xg_local_pre, xg_visit_pre
-            fuente = "previsión del modelo"
+            fuente = fuente_pre
 
         goles_local_actual = partido.goles_local or 0
         goles_visit_actual = partido.goles_visitante or 0
@@ -248,8 +305,8 @@ class PrediccionService:
 
     #Predecir los partidos pendientes
     def predecir_hoy(self) -> list[dict]:
-        from datetime import date
-        partidos = self.partido_repo.get_por_fecha(date.today())
+        from backend.pipeline.config import fecha_hoy_partidos
+        partidos = self.partido_repo.get_por_fecha(fecha_hoy_partidos())
         resultados = []
         for p in partidos:
             if p.estado in ["NS", "TDB"]:
@@ -257,6 +314,3 @@ class PrediccionService:
                 if pred:
                     resultados.append(pred)
         return resultados
-
-
-        

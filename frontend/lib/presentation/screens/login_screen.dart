@@ -41,8 +41,11 @@ class _LoginScreenState extends State<LoginScreen> {
         labelText: label,
         filled: true,
         fillColor: c.bg2,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       );
 
   @override
@@ -55,11 +58,16 @@ class _LoginScreenState extends State<LoginScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
             child: Column(children: [
-              Image.asset('assets/logos/logo_wordmark.png', height: 56, fit: BoxFit.contain),
+              Image.asset('assets/logos/logo_wordmark.png',
+                  height: 56, fit: BoxFit.contain),
               const SizedBox(height: 10),
-              Text(_modoRegistro ? 'Empezá a apostar con datos, no corazonadas' : 'Tu ventaja, calculada antes de apostar',
+              Text(
+                  _modoRegistro
+                      ? 'Convertí datos en decisiones más claras'
+                      : 'Predicciones deportivas con evidencia',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xB3E8ECF7), fontSize: 13)),
+                  style:
+                      const TextStyle(color: Color(0xB3E8ECF7), fontSize: 13)),
             ]),
           ),
           Expanded(
@@ -69,52 +77,93 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
               decoration: BoxDecoration(
                 color: c.bg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Consumer<AuthProvider>(
                 builder: (context, auth, _) => SingleChildScrollView(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Text(_modoRegistro ? 'Crear cuenta' : 'Iniciar sesión',
-                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: c.text)),
-                    const SizedBox(height: 4),
-                    Text(
-                        _modoRegistro ? '¿Ya tenés cuenta?' : '¿No tenés cuenta todavía?',
-                        style: TextStyle(fontSize: 12.5, color: c.textSecond)),
-                    const SizedBox(height: 22),
-                    TextField(
-                      controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      style: TextStyle(color: c.text),
-                      decoration: _campo('Email', c),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _passCtrl,
-                      obscureText: true,
-                      style: TextStyle(color: c.text),
-                      decoration: _campo('Contraseña', c),
-                    ),
-                    if (auth.error != null) ...[
-                      const SizedBox(height: 12),
-                      Text(auth.error!, style: TextStyle(color: c.brick, fontSize: 12.5), textAlign: TextAlign.center),
-                    ],
-                    const SizedBox(height: 20),
-                    ClayButton(
-                      label: _modoRegistro ? 'Crear cuenta' : 'Ingresar',
-                      loading: auth.cargando,
-                      onPressed: () => _submit(auth),
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: TextButton(
-                        onPressed: () => setState(() => _modoRegistro = !_modoRegistro),
-                        child: Text(
-                          _modoRegistro ? 'Ya tengo cuenta' : 'Crear una cuenta nueva',
-                          style: TextStyle(color: c.pitch, fontWeight: FontWeight.w500),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(_modoRegistro ? 'Crear cuenta' : 'Iniciar sesión',
+                            style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w600,
+                                color: c.text)),
+                        const SizedBox(height: 4),
+                        Text(
+                            _modoRegistro
+                                ? '¿Ya tienes una cuenta?'
+                                : '¿Aún no tienes una cuenta?',
+                            style:
+                                TextStyle(fontSize: 12.5, color: c.textSecond)),
+                        const SizedBox(height: 16),
+                        if (!_modoRegistro) ...[
+                          _beneficio(
+                              Icons.psychology_alt_outlined,
+                              'ML y Monte Carlo',
+                              'Probabilidades, no certezas',
+                              c),
+                          _beneficio(
+                              Icons.balance_outlined,
+                              'Kelly fraccionado',
+                              'Exposición sugerida según riesgo',
+                              c),
+                          _beneficio(
+                              Icons.query_stats_rounded,
+                              'Rendimiento verificable',
+                              'Aciertos y fallos quedan visibles',
+                              c),
+                          const SizedBox(height: 16),
+                        ],
+                        TextField(
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          style: TextStyle(color: c.text),
+                          decoration: _campo('Email', c),
                         ),
-                      ),
-                    ),
-                  ]),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _passCtrl,
+                          obscureText: true,
+                          style: TextStyle(color: c.text),
+                          decoration: _campo('Contraseña', c),
+                        ),
+                        if (auth.error != null) ...[
+                          const SizedBox(height: 12),
+                          Text(auth.error!,
+                              style: TextStyle(color: c.brick, fontSize: 12.5),
+                              textAlign: TextAlign.center),
+                        ],
+                        const SizedBox(height: 20),
+                        ClayButton(
+                          label: _modoRegistro ? 'Crear cuenta' : 'Ingresar',
+                          loading: auth.cargando,
+                          onPressed: () => _submit(auth),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: auth.cargando ? null : auth.loginGoogle,
+                          icon: const Icon(Icons.g_mobiledata, size: 28),
+                          label: Text(_modoRegistro
+                              ? 'Registrarme con Google'
+                              : 'Continuar con Google'),
+                        ),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: TextButton(
+                            onPressed: () =>
+                                setState(() => _modoRegistro = !_modoRegistro),
+                            child: Text(
+                              _modoRegistro
+                                  ? 'Ya tengo cuenta'
+                                  : 'Crear una cuenta nueva',
+                              style: TextStyle(
+                                  color: c.pitch, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ),
+                      ]),
                 ),
               ),
             ),
@@ -123,4 +172,30 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  Widget _beneficio(IconData icon, String title, String text, AppColors c) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 9),
+        child: Row(children: [
+          Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                  color: c.pitchSoft, borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, color: c.pitch, size: 19)),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(title,
+                    style: TextStyle(
+                        color: c.text,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5)),
+                Text(text,
+                    style: TextStyle(color: c.textSecond, fontSize: 11.5)),
+              ])),
+        ]),
+      );
 }

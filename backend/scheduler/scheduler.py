@@ -59,10 +59,10 @@ def job_pipeline_dia():
     try:
         from backend.pipeline.pipeline_dia import correr_pipeline, correr_pipeline_fecha
         from datetime import timedelta
-        from backend.pipeline.config import ahora_partidos
+        from backend.pipeline.config import fecha_hoy_partidos
 
         correr_pipeline()
-        manana = (ahora_partidos() + timedelta(days=1)).date().isoformat()
+        manana = (fecha_hoy_partidos() + timedelta(days=1)).isoformat()
         correr_pipeline_fecha(manana)
         log.info("Pipeline del día completado (hoy + mañana)")
     except Exception as e:
@@ -244,8 +244,9 @@ def job_fixtures_manana():
     log.info("Iniciando job fixtures mañana (00:45)")
     try:
         from backend.pipeline.pipeline_dia import correr_pipeline_fecha
-        from datetime import date, timedelta
-        manana = (date.today() + timedelta(days=1)).isoformat()
+        from datetime import timedelta
+        from backend.pipeline.config import fecha_hoy_partidos
+        manana = (fecha_hoy_partidos() + timedelta(days=1)).isoformat()
         correr_pipeline_fecha(manana)
         log.info("Fixtures de mañana guardados")
     except Exception as e:

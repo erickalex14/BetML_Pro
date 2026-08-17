@@ -1,16 +1,21 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme.dart';
+import '../../core/product_analytics.dart';
 import '../../core/constants.dart';
 import '../../domain/usecases/get_detalle_partido.dart';
 import '../../domain/usecases/get_prediccion_en_vivo.dart';
 import '../../data/repositories/partido_repo_impl.dart';
 import '../../domain/entities/partido.dart';
 import '../../domain/entities/prediccion.dart';
+import '../../domain/entities/parlay.dart';
 import '../widgets/clay.dart';
 import '../widgets/confidence.dart';
 import '../widgets/team_logo.dart';
+import '../widgets/design_system.dart';
+import '../providers/prediction_coupon_provider.dart';
 
 class DetalleScreen extends StatefulWidget {
   final int partidoId;
@@ -32,6 +37,7 @@ class _DetalleScreenState extends State<DetalleScreen> {
   @override
   void initState() {
     super.initState();
+    ProductAnalytics.track('detail_opened');
     final repo = PartidoRepositoryImpl.create();
     _getDetalle = GetDetallePartido(repo);
     _getPrediccionEnVivo = GetPrediccionEnVivo(repo);
@@ -69,22 +75,19 @@ class _DetalleScreenState extends State<DetalleScreen> {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: c.textSecond, size: 18),
-          onPressed: () => context.go('/'),
-        ),
-        title: Text(
-          _partido != null ? '${_partido!.local} vs ${_partido!.visitante}' : 'Detalle partido',
-          style: const TextStyle(fontSize: 14),
-          overflow: TextOverflow.ellipsis,
-        ),
+      appBar: AppHeader(
+        showBack: true,
+        title: _partido != null
+            ? '${_partido!.local} vs ${_partido!.visitante}'
+            : 'Análisis',
+        subtitle: _partido?.liga,
       ),
       body: _cargando
           ? Center(child: CircularProgressIndicator(color: c.pitch))
           : _error != null
               ? Center(child: Text(_error!, style: TextStyle(color: c.brick)))
-              : _Contenido(partido: _partido!, prediccionEnVivo: _prediccionEnVivo),
+              : _Contenido(
+                  partido: _partido!, prediccionEnVivo: _prediccionEnVivo),
     );
   }
 }
@@ -102,48 +105,139 @@ class _Contenido extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _Header(partido: partido),
-        if (partido.enJuego && prediccionEnVivo != null) _Seccion(
-          titulo: 'Probabilidad en vivo',
-          child: _ProbabilidadEnVivo(pred: prediccionEnVivo!),
-        ),
+        if (pred != null) _ResumenPrediccion(pred: pred),
+        if (partido.enJuego && prediccionEnVivo != null)
+          _Seccion(
+            titulo: 'MODELO · PROBABILIDAD EN VIVO',
+            child: _ProbabilidadEnVivo(pred: prediccionEnVivo!),
+          ),
         if (pred != null) ...[
           Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: ConfidenceDial(
                 value: pred.confianza,
-                label: pred.resultado == 'Empate' ? 'EMPATE' : 'GANA ${pred.resultado.toUpperCase()}',
+                label: pred.resultado == 'Empate'
+                    ? 'EMPATE'
+                    : 'GANA ${pred.resultado.toUpperCase()}',
               ),
             ),
           ),
-          if (pred.mercados.isNotEmpty) _Seccion(
-            titulo: 'Mercados recomendados',
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8, runSpacing: 8,
-                children: pred.mercados.map((m) => _MarketChip(mercado: m)).toList(),
+          if (pred.mercados.isNotEmpty)
+            _Seccion(
+              titulo: 'MERCADO · PROBABILIDADES',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: pred.mercados
+                      .map((m) => _MarketChip(partido: partido, mercado: m))
+                      .toList(),
+                ),
               ),
             ),
-          ),
-          if (pred.factores.isNotEmpty || pred.resumenH2h != null) _Seccion(
-            titulo: 'Por qué',
-            child: _Factores(pred: pred),
-          ),
+          if (pred.factores.isNotEmpty || pred.resumenH2h != null)
+            _Seccion(
+              titulo: 'CONTEXTO · POR QUÉ',
+              child: _Factores(pred: pred),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: ClayButton(
-              label: 'Kelly portafolio y jugadores',
+              label: 'Abrir Kelly, portafolio y jugadores',
               icon: Icons.insights_rounded,
-              onPressed: () => context.go('/partido/${partido.id}/avanzado'),
+              onPressed: () {
+                ProductAnalytics.track('analysis_expanded');
+                context.push('/partido/${partido.id}/avanzado');
+              },
             ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            child: Text(
+                'Las probabilidades describen incertidumbre; no garantizan un resultado.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.textMuted, fontSize: 10.5)),
           ),
         ] else
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('Sin predicción disponible — falta historial suficiente.',
-                style: TextStyle(color: c.textSecond), textAlign: TextAlign.center),
+            child: _SinPrediccion(partido: partido),
           ),
+      ]),
+    );
+  }
+}
+
+class _SinPrediccion extends StatelessWidget {
+  final Partido partido;
+  const _SinPrediccion({required this.partido});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final d = partido.disponibilidadPrediccion;
+    final mensaje = d?.codigo == 'NO_FINISHED_MATCHES'
+        ? 'No encontramos todavía tres partidos finalizados para ambos equipos.'
+        : 'El análisis está temporalmente no disponible mientras vinculamos y validamos el historial.';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: c.bg2,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.line),
+      ),
+      child: Column(children: [
+        Icon(Icons.storage_outlined, color: c.textSecond),
+        const SizedBox(height: 9),
+        Text('Datos insuficientes para una predicción confiable',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: c.text, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Text(mensaje,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: c.textSecond, height: 1.35)),
+        if (d != null) ...[
+          const SizedBox(height: 9),
+          Text(
+              'Historial general: ${d.localPartidosGenerales} · ${d.visitantePartidosGenerales} partidos',
+              style: TextStyle(color: c.textMuted, fontSize: 11)),
+        ],
+      ]),
+    );
+  }
+}
+
+class _ResumenPrediccion extends StatelessWidget {
+  final Prediccion pred;
+  const _ResumenPrediccion({required this.pred});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final soloMercado = pred.calidadDatos == 'solo_mercado';
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: c.pitchSoft,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: c.pitch)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('RESUMEN', style: AppTheme.eyebrow(c, color: c.pitch)),
+        const SizedBox(height: 7),
+        Text(
+            pred.resultado == 'Empate'
+                ? '${soloMercado ? 'El mercado' : 'El modelo'} favorece el empate'
+                : '${soloMercado ? 'El mercado' : 'El modelo'} favorece a ${pred.resultado}',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 5),
+        Text(
+            soloMercado
+                ? 'Referencia ${(pred.confianza * 100).toStringAsFixed(0)}% · derivada de cuotas 1X2 sin margen. No demuestra valor ni habilita Kelly.'
+                : 'Confianza ${(pred.confianza * 100).toStringAsFixed(0)}% · basada en ML y simulación Monte Carlo.',
+            style: TextStyle(color: c.textSecond, fontSize: 12.5)),
       ]),
     );
   }
@@ -159,15 +253,20 @@ class _Header extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 18),
       child: Column(children: [
-        Text(partido.liga.toUpperCase(), style: AppTheme.eyebrow(c, color: c.ledger)),
+        Text(partido.liga.toUpperCase(),
+            style: AppTheme.eyebrow(c, color: c.ledger)),
         const SizedBox(height: 14),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Expanded(
             child: Column(children: [
               TeamLogo(url: partido.localLogo, nombre: partido.local, size: 40),
               const SizedBox(height: 8),
-              Text(partido.local, textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text)),
+              Text(partido.local,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      color: c.text)),
             ]),
           ),
           Padding(
@@ -177,27 +276,47 @@ class _Header extends StatelessWidget {
               if (partido.enJuego) ...[
                 const SizedBox(height: 4),
                 Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(width: 6, height: 6, decoration: BoxDecoration(color: c.brick, shape: BoxShape.circle)),
+                  Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                          color: c.brick, shape: BoxShape.circle)),
                   const SizedBox(width: 4),
-                  Text(partido.minutoTexto, style: TextStyle(fontSize: 11, color: c.brick, fontWeight: FontWeight.w700)),
+                  Text(partido.minutoTexto,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: c.brick,
+                          fontWeight: FontWeight.w700)),
                 ]),
               ],
             ]),
           ),
           Expanded(
             child: Column(children: [
-              TeamLogo(url: partido.visitanteLogo, nombre: partido.visitante, size: 40),
+              TeamLogo(
+                  url: partido.visitanteLogo,
+                  nombre: partido.visitante,
+                  size: 40),
               const SizedBox(height: 8),
-              Text(partido.visitante, textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.text)),
+              Text(partido.visitante,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      color: c.text)),
             ]),
           ),
         ]),
         const SizedBox(height: 10),
-        Text(partido.fechaHoraLarga, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: c.textSecond)),
+        Text(partido.fechaHoraLarga,
+            style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: c.textSecond)),
         if (partido.jornada != null) ...[
           const SizedBox(height: 2),
-          Text(partido.jornada!, style: TextStyle(fontSize: 11, color: c.textMuted)),
+          Text(partido.jornada!,
+              style: TextStyle(fontSize: 11, color: c.textMuted)),
         ],
       ]),
     );
@@ -233,7 +352,8 @@ class _ProbabilidadEnVivo extends StatelessWidget {
     final c = context.colors;
     Widget prob(String label, double valor) => Expanded(
           child: Column(children: [
-            Text('${(valor * 100).toStringAsFixed(0)}%', style: AppTheme.score(c, size: 18).copyWith(color: c.pitch)),
+            Text('${(valor * 100).toStringAsFixed(0)}%',
+                style: AppTheme.score(c, size: 18).copyWith(color: c.pitch)),
             const SizedBox(height: 2),
             Text(label, style: TextStyle(fontSize: 10.5, color: c.textSecond)),
           ]),
@@ -242,7 +362,10 @@ class _ProbabilidadEnVivo extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(13), border: Border.all(color: c.line)),
+        decoration: BoxDecoration(
+            color: c.surface,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: c.line)),
         child: Column(children: [
           Row(children: [
             prob('Local', pred.probLocal),
@@ -250,12 +373,15 @@ class _ProbabilidadEnVivo extends StatelessWidget {
             prob('Visitante', pred.probVisitante),
           ]),
           const SizedBox(height: 8),
-          Text('Recalculado desde el marcador actual (${pred.marcadorActual}) — no la predicción pre-partido',
-              style: TextStyle(fontSize: 10.5, color: c.textMuted), textAlign: TextAlign.center),
+          Text(
+              'Recalculado desde el marcador actual (${pred.marcadorActual}) — no la predicción pre-partido',
+              style: TextStyle(fontSize: 10.5, color: c.textMuted),
+              textAlign: TextAlign.center),
           if (pred.golesEsperadosRestantes > 0)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text('~${pred.golesEsperadosRestantes.toStringAsFixed(2)} goles esperados en lo que queda',
+              child: Text(
+                  '~${pred.golesEsperadosRestantes.toStringAsFixed(2)} goles esperados en lo que queda',
                   style: TextStyle(fontSize: 10.5, color: c.textMuted)),
             ),
           if (pred.mercados.isNotEmpty) ...[
@@ -268,7 +394,9 @@ class _ProbabilidadEnVivo extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(children: [
-                  Expanded(child: Text(m.mercado, style: TextStyle(fontSize: 12, color: c.textSecond))),
+                  Expanded(
+                      child: Text(m.mercado,
+                          style: TextStyle(fontSize: 12, color: c.textSecond))),
                   SizedBox(
                     width: 62,
                     child: ClipRRect(
@@ -287,7 +415,8 @@ class _ProbabilidadEnVivo extends StatelessWidget {
                     width: 38,
                     child: Text('${(m.probabilidad * 100).toStringAsFixed(0)}%',
                         textAlign: TextAlign.right,
-                        style: AppTheme.score(c, size: 12).copyWith(color: c.text)),
+                        style: AppTheme.score(c, size: 12)
+                            .copyWith(color: c.text)),
                   ),
                 ]),
               ),
@@ -299,25 +428,46 @@ class _ProbabilidadEnVivo extends StatelessWidget {
 }
 
 class _MarketChip extends StatelessWidget {
+  final Partido partido;
   final Mercado mercado;
-  const _MarketChip({required this.mercado});
+  const _MarketChip({required this.partido, required this.mercado});
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     final recomendado = mercado.probabilidad >= AppConstants.umbralMercado;
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(11),
+      onTap: () => context.read<PredictionCouponProvider>().toggle(
+            CouponSelection(
+              input: ParlaySeleccionInput(
+                  partidoId: partido.id, mercado: mercado.mercado),
+              partido: '${partido.local} vs ${partido.visitante}',
+              liga: partido.liga,
+              mercado: mercado.mercado,
+              probabilidad: mercado.probabilidad,
+            ),
+          ),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: recomendado ? c.ledgerSoft : Colors.transparent,
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: recomendado ? c.ledger : c.lineStrong, width: recomendado ? 1 : 0.7),
+        border: Border.all(
+            color: recomendado ? c.ledger : c.lineStrong,
+            width: recomendado ? 1 : 0.7),
       ),
-      child: Text('${mercado.mercado} · ${(mercado.probabilidad * 100).toStringAsFixed(0)}%',
-          style: TextStyle(
-              fontSize: 11.5,
-              color: recomendado ? c.ledger : c.textSecond,
-              fontWeight: recomendado ? FontWeight.w600 : FontWeight.normal)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text('${mercado.mercado} · ${(mercado.probabilidad * 100).toStringAsFixed(0)}%',
+            style: TextStyle(
+                fontSize: 11.5,
+                color: recomendado ? c.ledger : c.textSecond,
+                fontWeight: recomendado ? FontWeight.w600 : FontWeight.normal)),
+        const SizedBox(width: 6),
+        Icon(Icons.add_circle_outline_rounded, size: 16,
+            color: recomendado ? c.ledger : c.textSecond),
+      ]),
+      ),
     );
   }
 }
@@ -338,16 +488,22 @@ class _Factores extends StatelessWidget {
             padding: const EdgeInsets.only(top: 10),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
-                width: 30, height: 30,
-                decoration: BoxDecoration(color: c.bg2, borderRadius: BorderRadius.circular(9)),
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                    color: c.bg2, borderRadius: BorderRadius.circular(9)),
                 alignment: Alignment.center,
-                child: Text('H2H', style: AppTheme.score(c, size: 8.5).copyWith(color: c.textSecond)),
+                child: Text('H2H',
+                    style: AppTheme.score(c, size: 8.5)
+                        .copyWith(color: c.textSecond)),
               ),
               const SizedBox(width: 11),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(pred.resumenH2h!, style: TextStyle(fontSize: 12, color: c.textSecond, height: 1.35)),
+                  child: Text(pred.resumenH2h!,
+                      style: TextStyle(
+                          fontSize: 12, color: c.textSecond, height: 1.35)),
                 ),
               ),
             ]),
@@ -370,29 +526,46 @@ class _FactorRow extends StatelessWidget {
     final Border? border;
     switch (factor.favorece) {
       case 'local':
-        bg = c.pitchSoft; fg = c.pitch; pill = 'L'; border = null;
+        bg = c.pitchSoft;
+        fg = c.pitch;
+        pill = 'L';
+        border = null;
         break;
       case 'visitante':
-        bg = Colors.transparent; fg = c.pitch; pill = 'V'; border = Border.all(color: c.pitch, width: 1.3);
+        bg = Colors.transparent;
+        fg = c.pitch;
+        pill = 'V';
+        border = Border.all(color: c.pitch, width: 1.3);
         break;
       default:
-        bg = c.bg2; fg = c.textMuted; pill = '='; border = null;
+        bg = c.bg2;
+        fg = c.textMuted;
+        pill = '=';
+        border = null;
     }
     return Container(
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
+      decoration:
+          BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
-          width: 28, height: 28,
-          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9), border: border),
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(9),
+              border: border),
           alignment: Alignment.center,
-          child: Text(pill, style: AppTheme.score(c, size: 10).copyWith(color: fg)),
+          child: Text(pill,
+              style: AppTheme.score(c, size: 10).copyWith(color: fg)),
         ),
         const SizedBox(width: 11),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 5),
-            child: Text(factor.texto, style: TextStyle(fontSize: 12, color: c.textSecond, height: 1.35)),
+            child: Text(factor.texto,
+                style:
+                    TextStyle(fontSize: 12, color: c.textSecond, height: 1.35)),
           ),
         ),
       ]),

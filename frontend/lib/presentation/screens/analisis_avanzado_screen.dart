@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../core/errors/failures.dart';
 import '../../domain/entities/analisis_avanzado.dart';
@@ -47,6 +48,7 @@ class _AnalisisAvanzadoScreenState extends State<AnalisisAvanzadoScreen> {
     final rMercados = await futureMercados;
     final rPortafolio = await futurePortafolio;
     final rJugadores = await futureJugadores;
+    if (!mounted) return;
     setState(() {
       _mercados = rMercados.kelly;
       _errorMercados = rMercados.error;
@@ -61,20 +63,33 @@ class _AnalisisAvanzadoScreenState extends State<AnalisisAvanzadoScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.go('/partido/${widget.partidoId}');
+      },
+      child: DefaultTabController(
+        length: 3,
+        child: Scaffold(
         appBar: AppBar(
-          title: const Text('Análisis avanzado', style: TextStyle(fontSize: 15)),
+          leading: IconButton(
+            tooltip: 'Volver',
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => context.canPop()
+                ? context.pop()
+                : context.go('/partido/${widget.partidoId}'),
+          ),
+          title: const Text('Análisis avanzado',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           bottom: TabBar(
             isScrollable: true,
             indicatorColor: c.pitch,
             labelColor: c.pitch,
             unselectedLabelColor: c.textSecond,
             tabs: const [
-              Tab(text: 'TODOS LOS MERCADOS'),
-              Tab(text: 'KELLY PORTAFOLIO'),
-              Tab(text: 'JUGADORES'),
+              Tab(text: 'Mercados'),
+              Tab(text: 'Portafolio'),
+              Tab(text: 'Jugadores'),
             ],
           ),
         ),
@@ -87,6 +102,7 @@ class _AnalisisAvanzadoScreenState extends State<AnalisisAvanzadoScreen> {
                   _JugadoresTab(jugadores: _jugadores, error: _errorJugadores),
                 ],
               ),
+        ),
       ),
     );
   }
@@ -552,14 +568,27 @@ void _abrirDetalleJugador(BuildContext context, JugadorMercado jug) {
     context: context,
     backgroundColor: c.surface,
     isScrollControlled: true,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-    builder: (_) => _JugadorDetalleSheet(jug: jug),
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: .82,
+      minChildSize: .55,
+      maxChildSize: .96,
+      builder: (_, controller) =>
+          _JugadorDetalleSheet(jug: jug, scrollController: controller),
+    ),
   );
 }
 
 class _JugadorDetalleSheet extends StatefulWidget {
   final JugadorMercado jug;
-  const _JugadorDetalleSheet({required this.jug});
+  final ScrollController scrollController;
+  const _JugadorDetalleSheet({
+    required this.jug,
+    required this.scrollController,
+  });
 
   @override
   State<_JugadorDetalleSheet> createState() => _JugadorDetalleSheetState();
@@ -572,11 +601,13 @@ class _JugadorDetalleSheetState extends State<_JugadorDetalleSheet> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final jug = widget.jug;
-    const tabs = ['Estadísticas', 'Goles', 'Tarjetas'];
+    const tabs = ['Resumen', 'Goles', 'Tarjetas'];
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 10, 20, MediaQuery.of(context).viewInsets.bottom + 24),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return ListView(
+      controller: widget.scrollController,
+      padding: EdgeInsets.fromLTRB(
+          20, 10, 20, MediaQuery.of(context).viewInsets.bottom + 32),
+      children: [
         Center(
           child: Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(color: c.lineStrong, borderRadius: BorderRadius.circular(2))),
@@ -592,13 +623,35 @@ class _JugadorDetalleSheetState extends State<_JugadorDetalleSheet> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(jug.nombre, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.text)),
-              Text('${jug.posicion ?? ''} · ${jug.nPartidosHistorial} partidos de historial',
+              Text('${jug.posicion ?? 'Sin posición'} · ${jug.nPartidosHistorial} partidos analizados',
                   style: TextStyle(fontSize: 11.5, color: c.textSecond)),
             ]),
           ),
+          IconButton(
+            tooltip: 'Cerrar',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
         ]),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: c.bg2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: c.line),
+          ),
+          child: Text(
+            jug.nPartidosHistorial < 5
+                ? 'Muestra limitada: interpretá estas probabilidades con cautela.'
+                : 'Estimación basada en el historial disponible del jugador. No garantiza el resultado.',
+            style: TextStyle(fontSize: 11.5, height: 1.35, color: c.textSecond),
+          ),
+        ),
         const SizedBox(height: 18),
-        Row(
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
           children: List.generate(tabs.length, (i) {
             final activo = _tab == i;
             return Padding(
@@ -617,12 +670,13 @@ class _JugadorDetalleSheetState extends State<_JugadorDetalleSheet> {
               ),
             );
           }),
+          ),
         ),
         const SizedBox(height: 16),
         if (_tab == 0) ..._panelEstadisticas(c, jug),
         if (_tab == 1) ..._panelGoles(c, jug),
         if (_tab == 2) ..._panelTarjetas(c, jug),
-      ]),
+      ],
     );
   }
 

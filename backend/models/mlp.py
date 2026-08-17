@@ -24,10 +24,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 
 from backend.features.dataset import FEATURES_ML
+from backend.models.validacion import division_temporal, brier_confianza_elegida
 
 logging.basicConfig(
     level=logging.INFO,
@@ -141,13 +141,15 @@ def _perdida_batch(pred: dict, batch: dict, pesos_clase: torch.Tensor) -> tuple:
 
 
 def entrenar_mlp(df: pd.DataFrame, epochs: int = 60, batch_size: int = 128,
-                  lr: float = 0.001, patience: int = 8) -> dict:
+                  lr: float = 0.001, patience: int = 8,
+                  df_val: pd.DataFrame | None = None) -> dict:
     log.info("=" * 55)
     log.info("  Entrenando MLP multiobjetivo — BetML Pro")
     log.info("=" * 55)
 
-    df_train, df_val = train_test_split(
-        df, test_size=0.2, random_state=42, stratify=df["resultado"])
+    df_train, df_val = division_temporal(df) if df_val is None else (df, df_val)
+    log.info(f"  Corte temporal: train hasta {df_train['fecha'].max()} | "
+             f"validación desde {df_val['fecha'].min()}")
 
     scaler_x = StandardScaler().fit(df_train[FEATURES_ML].fillna(0).to_numpy())
 
@@ -218,6 +220,15 @@ def entrenar_mlp(df: pd.DataFrame, epochs: int = 60, batch_size: int = 128,
                 break
 
     modelo.load_state_dict(mejor_estado)
+    probas_val, y_val = [], []
+    modelo.eval()
+    with torch.no_grad():
+        for batch in dl_val:
+            salida = modelo(batch["x"])
+            probas_val.append(torch.softmax(salida["1x2"], dim=1).numpy())
+            y_val.append(batch["y_1x2"].numpy())
+    val_brier = brier_confianza_elegida(
+        np.concatenate(y_val), np.vstack(probas_val))
     log.info(f"  Mejor val_loss: {mejor_val_loss:.4f} | val_acc_1x2: {mejor_acc_1x2*100:.2f}%")
 
     return {
@@ -227,6 +238,7 @@ def entrenar_mlp(df: pd.DataFrame, epochs: int = 60, batch_size: int = 128,
         "norm_tarjetas": (media_tarjetas, std_tarjetas),
         "val_loss": mejor_val_loss,
         "val_acc": mejor_acc_1x2,
+        "val_brier": val_brier,
     }
 
 
@@ -239,6 +251,7 @@ def guardar_mlp(resultado: dict, ruta: Path = MLP_PATH):
         "norm_corners": resultado["norm_corners"],
         "norm_tarjetas": resultado["norm_tarjetas"],
         "val_acc": resultado["val_acc"],
+        "val_brier": resultado.get("val_brier"),
     }, ruta)
     log.info(f"MLP guardado: {ruta}")
 
@@ -264,6 +277,7 @@ def cargar_mlp(ruta: Path = MLP_PATH):
         "norm_corners": checkpoint["norm_corners"],
         "norm_tarjetas": checkpoint["norm_tarjetas"],
         "val_acc": checkpoint.get("val_acc", 0.5),
+        "val_brier": checkpoint.get("val_brier"),
     }
 
 

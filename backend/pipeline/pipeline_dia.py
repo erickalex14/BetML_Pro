@@ -2,7 +2,7 @@ import logging
 from backend.pipeline import api_client
 from backend.pipeline.guardador import guardar_partido
 from backend.db.database import crear_tablas, SessionLocal
-from backend.pipeline.config import LIGAS, TEMPORADA_ACTUAL
+from backend.pipeline.config import LIGAS, TEMPORADA_ACTUAL, fecha_hoy_partidos
 
 log = logging.getLogger(__name__)
 
@@ -98,8 +98,7 @@ def correr_pipeline():
         # En vez de 17 requests (una por liga), traemos TODOS
         # los partidos del día y filtramos los de nuestras ligas.
         # 17 requests → 1 request. Ahorramos 94% del límite diario.
-        from datetime import date
-        hoy = date.today().isoformat()
+        hoy = fecha_hoy_partidos().isoformat()
 
         log.info(f"Trayendo todos los partidos del día: {hoy}")
 
@@ -135,6 +134,8 @@ def correr_pipeline():
             total_guardados += 1
 
         log.info(f"Pipeline completado — {total_guardados} partidos guardados")
+        from backend.services.cache import invalidar_cache_dia
+        invalidar_cache_dia(db)
 
     except Exception as e:
         log.error(f"Error en pipeline: {e}")

@@ -5,6 +5,7 @@ import 'core/router.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/partidos_provider.dart';
 import 'presentation/providers/stats_provider.dart';
+import 'presentation/providers/prediction_coupon_provider.dart';
 
 void main() {
   runApp(const BetMLApp());
@@ -31,13 +32,14 @@ class _BetMLAppState extends State<BetMLApp> {
         ChangeNotifierProvider.value(value: _auth),
         ChangeNotifierProvider(create: (_) => PartidosProvider()),
         ChangeNotifierProvider(create: (_) => StatsProvider()),
+        ChangeNotifierProvider(create: (_) => PredictionCouponProvider()),
       ],
       child: MaterialApp.router(
         title: 'BetML Pro',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
+        themeMode: ThemeMode.dark,
         routerConfig: _router,
       ),
     );

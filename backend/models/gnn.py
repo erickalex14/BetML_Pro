@@ -25,8 +25,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import HeteroConv, SAGEConv
-from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
+from backend.models.validacion import brier_confianza_elegida
 
 logging.basicConfig(
     level=logging.INFO,
@@ -73,12 +73,19 @@ class GNNEquipoJugador(nn.Module):
         return self.clasificador(par)
 
 
-def _pares_entrenamiento(db, idx_equipo: dict, fecha_corte=None) -> list:
+def _pares_entrenamiento(db, idx_equipo: dict, fecha_hasta=None,
+                         fecha_desde=None) -> list:
     """(idx_local, idx_visit, resultado) de partidos reales — para
     entrenar el clasificador sobre los embeddings del grafo."""
     from sqlalchemy import text
-    filtro = "and p.fecha < :fecha_corte" if fecha_corte else ""
-    params = {"fecha_corte": fecha_corte} if fecha_corte else {}
+    filtros, params = [], {}
+    if fecha_hasta is not None:
+        filtros.append("p.fecha < :fecha_hasta")
+        params["fecha_hasta"] = fecha_hasta
+    if fecha_desde is not None:
+        filtros.append("p.fecha >= :fecha_desde")
+        params["fecha_desde"] = fecha_desde
+    filtro = " and " + " and ".join(filtros) if filtros else ""
     filas = db.execute(text(f"""
         select equipo_local_id, equipo_visit_id, goles_local, goles_visitante
         from partidos p
@@ -95,6 +102,20 @@ def _pares_entrenamiento(db, idx_equipo: dict, fecha_corte=None) -> list:
     return pares
 
 
+def _fecha_corte_validacion(db, proporcion_validacion: float = 0.20):
+    """Fecha que inicia el bloque cronológico reservado."""
+    from sqlalchemy import text
+    fechas = [f[0] for f in db.execute(text("""
+        select fecha from partidos
+        where estado = 'FT' and goles_local is not null
+        order by fecha asc
+    """)).fetchall()]
+    if len(fechas) < 10:
+        raise ValueError("Se necesitan al menos 10 partidos para validar la GNN")
+    indice = min(len(fechas) - 1, int(len(fechas) * (1 - proporcion_validacion)))
+    return fechas[indice]
+
+
 def entrenar_gnn(db, epochs: int = 100, lr: float = 0.005, patience: int = 15) -> dict:
     from backend.features.grafo import construir_grafo
 
@@ -102,13 +123,15 @@ def entrenar_gnn(db, epochs: int = 100, lr: float = 0.005, patience: int = 15) -
     log.info("  Entrenando GNN equipo-jugador — BetML Pro")
     log.info("=" * 55)
 
-    grafo, idx_equipo, idx_jugador = construir_grafo(db)
-    pares = _pares_entrenamiento(db, idx_equipo)
-    log.info(f"  {len(pares)} partidos como pares de entrenamiento")
-
-    train_pares, val_pares = train_test_split(
-        pares, test_size=0.2, random_state=42,
-        stratify=[p[2] for p in pares])
+    fecha_corte = _fecha_corte_validacion(db)
+    # El message passing tampoco puede mirar aristas/resultados futuros.
+    grafo, idx_equipo, idx_jugador = construir_grafo(db, fecha_corte=fecha_corte)
+    train_pares = _pares_entrenamiento(db, idx_equipo, fecha_hasta=fecha_corte)
+    val_pares = _pares_entrenamiento(db, idx_equipo, fecha_desde=fecha_corte)
+    if not train_pares or not val_pares:
+        raise ValueError("El corte temporal dejó la GNN sin train o validación")
+    log.info(f"  Corte temporal GNN: {len(train_pares)} train | "
+             f"{len(val_pares)} validación desde {fecha_corte}")
 
     def a_tensores(pares):
         idx_l = torch.tensor([p[0] for p in pares], dtype=torch.long)
@@ -164,11 +187,23 @@ def entrenar_gnn(db, epochs: int = 100, lr: float = 0.005, patience: int = 15) -
                 break
 
     modelo.load_state_dict(mejor_estado)
+    modelo.eval()
+    with torch.no_grad():
+        logits_val = modelo(grafo.x_dict, grafo.edge_index_dict, idx_l_val, idx_v_val)
+        val_brier = brier_confianza_elegida(
+            y_val.numpy(), torch.softmax(logits_val, dim=1).numpy())
     log.info(f"  Mejor val_loss: {mejor_val_loss:.4f} | val_acc: {mejor_acc*100:.2f}%")
 
+    # La métrica se obtuvo con un grafo congelado antes del corte. Para
+    # servir predicciones sí incorporamos la foto completa actual; los
+    # pesos no vuelven a evaluarse sobre ella, por lo que val_acc conserva
+    # su significado y equipos recientes no desaparecen de producción.
+    grafo_prod, idx_equipo_prod, idx_jugador_prod = construir_grafo(db)
+
     return {
-        "modelo": modelo, "grafo": grafo, "idx_equipo": idx_equipo,
-        "idx_jugador": idx_jugador, "val_acc": mejor_acc,
+        "modelo": modelo, "grafo": grafo_prod, "idx_equipo": idx_equipo_prod,
+        "idx_jugador": idx_jugador_prod, "val_acc": mejor_acc,
+        "val_brier": val_brier,
     }
 
 
@@ -180,6 +215,7 @@ def guardar_gnn(resultado: dict, ruta: Path = GNN_PATH):
         "idx_equipo": resultado["idx_equipo"],
         "idx_jugador": resultado["idx_jugador"],
         "val_acc": resultado["val_acc"],
+        "val_brier": resultado.get("val_brier"),
     }, ruta)
     log.info(f"GNN guardada: {ruta}")
 
@@ -196,6 +232,7 @@ def cargar_gnn(ruta: Path = GNN_PATH):
         "modelo": modelo, "grafo": checkpoint["grafo"],
         "idx_equipo": checkpoint["idx_equipo"], "idx_jugador": checkpoint["idx_jugador"],
         "val_acc": checkpoint["val_acc"],
+        "val_brier": checkpoint.get("val_brier"),
     }
 
 

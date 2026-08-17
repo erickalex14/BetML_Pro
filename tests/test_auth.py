@@ -11,8 +11,11 @@ from fastapi.security import HTTPAuthorizationCredentials
 from backend.core.auth import hash_password, verificar_password, crear_token, verificar_token
 from backend.core.deps import get_usuario_actual
 from backend.db.database import SessionLocal
-from backend.db.modelos import Usuario
-from backend.api.routes.auth import registro, login, RegistroRequest, LoginRequest
+from backend.db.modelos import SesionRefresh, Usuario
+from backend.api.routes.auth import (
+    GoogleRequest, LoginRequest, RefreshRequest, RegistroRequest,
+    google, login, refresh, registro,
+)
 
 EMAIL_TEST = "pytest-caveman@test.com"
 
@@ -28,9 +31,15 @@ def _login(body, db):
 @pytest.fixture
 def db():
     session = SessionLocal()
+    ids = [u.id for u in session.query(Usuario.id).filter(Usuario.email == EMAIL_TEST)]
+    if ids:
+        session.query(SesionRefresh).filter(SesionRefresh.usuario_id.in_(ids)).delete(synchronize_session=False)
     session.query(Usuario).filter(Usuario.email == EMAIL_TEST).delete()
     session.commit()
     yield session
+    ids = [u.id for u in session.query(Usuario.id).filter(Usuario.email == EMAIL_TEST)]
+    if ids:
+        session.query(SesionRefresh).filter(SesionRefresh.usuario_id.in_(ids)).delete(synchronize_session=False)
     session.query(Usuario).filter(Usuario.email == EMAIL_TEST).delete()
     session.commit()
     session.close()
@@ -57,6 +66,7 @@ def test_token_invalido_rechazado():
 def test_registro_login_flujo_completo(db):
     r = _registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
     assert "access_token" in r
+    assert "refresh_token" in r
 
     usuario_db = db.query(Usuario).filter(Usuario.email == EMAIL_TEST).first()
     assert usuario_db.password_hash != "claveSegura123"
@@ -84,3 +94,42 @@ def test_get_usuario_actual_con_token_invalido_da_401(db):
     with pytest.raises(HTTPException) as exc:
         get_usuario_actual(creds, db)
     assert exc.value.status_code == 401
+
+
+def test_refresh_rota_y_detecta_reutilizacion(db):
+    tokens = _registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
+    nuevos = refresh.__wrapped__(None, RefreshRequest(refresh_token=tokens["refresh_token"]), db)
+    assert nuevos["refresh_token"] != tokens["refresh_token"]
+
+    with pytest.raises(HTTPException) as exc:
+        refresh.__wrapped__(None, RefreshRequest(refresh_token=tokens["refresh_token"]), db)
+    assert exc.value.status_code == 401
+
+    with pytest.raises(HTTPException):
+        refresh.__wrapped__(None, RefreshRequest(refresh_token=nuevos["refresh_token"]), db)
+
+
+def test_google_enlaza_misma_cuenta_por_email_verificado(db, monkeypatch):
+    tokens = _registro(RegistroRequest(email=EMAIL_TEST, password="claveSegura123"), db)
+    usuario_antes = db.query(Usuario).filter(Usuario.email == EMAIL_TEST).one()
+    usuario_id = usuario_antes.id
+
+    import backend.core.google_auth as google_auth
+    monkeypatch.setattr(google_auth, "verificar_id_token_google", lambda _: {
+        "sub": "google-sub-test", "email": EMAIL_TEST,
+        "email_verified": True, "name": "Usuario Test",
+    })
+    settings = __import__("backend.api.routes.auth", fromlist=["get_settings"]).get_settings()
+    anterior = settings.google_client_id
+    settings.google_client_id = "client-test"
+    try:
+        respuesta = google.__wrapped__(None, GoogleRequest(id_token="x" * 20), db)
+    finally:
+        settings.google_client_id = anterior
+
+    db.expire_all()
+    usuario_despues = db.query(Usuario).filter(Usuario.email == EMAIL_TEST).one()
+    assert respuesta["refresh_token"]
+    assert usuario_despues.id == usuario_id
+    assert usuario_despues.google_sub == "google-sub-test"
+    assert usuario_despues.password_hash is not None

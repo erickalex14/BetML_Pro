@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     # python -c "import secrets; print(secrets.token_hex(32))"
     jwt_secret_key:        str = "dev-secret-cambiar-en-produccion"
     jwt_algoritmo:          str = "HS256"
-    jwt_expira_minutos:     int = 60 * 24 * 7  # 7 días
+    jwt_expira_minutos:     int = 15
+    jwt_refresh_dias:       int = 30
+    google_client_id:       str = ""
 
     class Config:
         #Lee el .env

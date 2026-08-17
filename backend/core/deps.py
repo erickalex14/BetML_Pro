@@ -18,7 +18,7 @@ def get_usuario_actual(
     credenciales: HTTPAuthorizationCredentials = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> Usuario:
-    payload = verificar_token(credenciales.credentials)
+    payload = verificar_token(credenciales.credentials, "access")
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -1,7 +1,8 @@
 from datetime import date
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from backend.db.modelos import Partido, EstadisticaPartido
+from backend.pipeline.config import rango_utc_dia_partidos
 
 class PartidoRepository:
 
@@ -14,11 +15,19 @@ class PartidoRepository:
 
     #Obtener partido por fecha
     def get_por_fecha(self, fecha: date) -> List[Partido]:
+        inicio_utc, fin_utc = rango_utc_dia_partidos(fecha)
         return (
             self.db.query(Partido)
+            .options(
+                joinedload(Partido.equipo_local),
+                joinedload(Partido.equipo_visitante),
+                joinedload(Partido.liga),
+                joinedload(Partido.estadisticas),
+                joinedload(Partido.stats_sofascore),
+            )
             .filter(
-                Partido.fecha >= f"{fecha} 00:00:00",
-                Partido.fecha <= f"{fecha} 23:59:59"
+                Partido.fecha >= inicio_utc,
+                Partido.fecha < fin_utc,
             )
             .order_by(Partido.fecha.asc())
             .all()

@@ -1,0 +1,104 @@
+{
+  "generado_en": "2026-08-17T15:02:44.101716+00:00",
+  "modelo": "xgboost",
+  "metodo": "expanding_window",
+  "ventanas": [
+    {
+      "ventana": 1,
+      "train_n": 6275,
+      "train_hasta": "2024-11-03T20:45:00",
+      "validacion_desde": "2024-11-04T12:30:00",
+      "validacion_hasta": "2025-03-30T20:05:00",
+      "n": 2122,
+      "accuracy": 0.447691,
+      "log_loss": 1.049276,
+      "brier_multiclase": 0.63107,
+      "confianza_media": 0.439018,
+      "gap_calibracion": 0.008673,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 53,
+        "cobertura": 0.024976,
+        "accuracy": 0.660377,
+        "confianza_media": 0.696431
+      }
+    },
+    {
+      "ventana": 2,
+      "train_n": 8397,
+      "train_hasta": "2025-03-30T20:05:00",
+      "validacion_desde": "2025-03-31T11:30:00",
+      "validacion_hasta": "2025-08-18T19:00:00",
+      "n": 1781,
+      "accuracy": 0.45817,
+      "log_loss": 1.053975,
+      "brier_multiclase": 0.633931,
+      "confianza_media": 0.436551,
+      "gap_calibracion": 0.021618,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 21,
+        "cobertura": 0.011791,
+        "accuracy": 0.714286,
+        "confianza_media": 0.68459
+      }
+    },
+    {
+      "ventana": 3,
+      "train_n": 10178,
+      "train_hasta": "2025-08-18T19:00:00",
+      "validacion_desde": "2025-08-19T14:00:00",
+      "validacion_hasta": "2026-01-12T15:00:00",
+      "n": 2233,
+      "accuracy": 0.467532,
+      "log_loss": 1.042832,
+      "brier_multiclase": 0.626914,
+      "confianza_media": 0.438452,
+      "gap_calibracion": 0.02908,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 52,
+        "cobertura": 0.023287,
+        "accuracy": 0.653846,
+        "confianza_media": 0.691778
+      }
+    },
+    {
+      "ventana": 4,
+      "train_n": 12411,
+      "train_hasta": "2026-01-12T15:00:00",
+      "validacion_desde": "2026-01-13T10:25:00",
+      "validacion_hasta": "2026-07-18T16:00:00",
+      "n": 1570,
+      "accuracy": 0.440127,
+      "log_loss": 1.059522,
+      "brier_multiclase": 0.638255,
+      "confianza_media": 0.424085,
+      "gap_calibracion": 0.016042,
+      "alta_confianza": {
+        "umbral": 0.65,
+        "n": 9,
+        "cobertura": 0.005732,
+        "accuracy": 0.666667,
+        "confianza_media": 0.673248
+      }
+    }
+  ],
+  "global": {
+    "n": 7706,
+    "accuracy": 0.454321,
+    "log_loss": 1.050582,
+    "brier_multiclase": 0.631991,
+    "confianza_media": 0.435242,
+    "gap_calibracion": 0.01908,
+    "alta_confianza": {
+      "umbral": 0.65,
+      "n": 135,
+      "cobertura": 0.017519,
+      "accuracy": 0.666667,
+      "confianza_media": 0.691251
+    }
+  },
+  "roi": null,
+  "nota_roi": "No calculado: la base no conserva la cuota exacta al emitir cada predicción."
+}

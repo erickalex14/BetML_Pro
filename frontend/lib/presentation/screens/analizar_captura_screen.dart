@@ -24,15 +24,24 @@ class _AnalizarCapturaScreenState extends State<AnalizarCapturaScreen> {
 
   Future<void> _elegirImagen() async {
     final picker = ImagePicker();
-    final archivo = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    final archivo =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (archivo == null) return;
     final bytes = await archivo.readAsBytes();
-    setState(() { _bytes = bytes; _nombre = archivo.name; _resultado = null; _error = null; });
+    setState(() {
+      _bytes = bytes;
+      _nombre = archivo.name;
+      _resultado = null;
+      _error = null;
+    });
   }
 
   Future<void> _analizar() async {
     if (_bytes == null) return;
-    setState(() { _cargando = true; _error = null; });
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
     try {
       final ds = AnalisisImagenRemoteDataSource(AuthClient());
       final resultado = await ds.analizar(_bytes!, _nombre ?? 'captura.png');
@@ -52,7 +61,8 @@ class _AnalizarCapturaScreenState extends State<AnalizarCapturaScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Analizar captura')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        Text('Subí una captura de un parley/bet builder — leemos equipos y mercados y te decimos qué opina el modelo de cada pata.',
+        Text(
+            'Subí una captura de un parley/bet builder — leemos equipos y mercados y te decimos qué opina el modelo de cada pata.',
             style: TextStyle(fontSize: 12.5, color: c.textSecond, height: 1.4)),
         const SizedBox(height: 16),
         GestureDetector(
@@ -65,20 +75,33 @@ class _AnalizarCapturaScreenState extends State<AnalizarCapturaScreen> {
               border: Border.all(color: c.lineStrong, style: BorderStyle.solid),
             ),
             child: _bytes != null
-                ? ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.memory(_bytes!, fit: BoxFit.cover, width: double.infinity))
-                : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.add_photo_alternate_outlined, size: 34, color: c.textMuted),
-                    const SizedBox(height: 8),
-                    Text('Tocá para elegir una imagen', style: TextStyle(color: c.textSecond, fontSize: 12.5)),
-                  ]),
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.memory(_bytes!,
+                        fit: BoxFit.cover, width: double.infinity))
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                        Icon(Icons.add_photo_alternate_outlined,
+                            size: 34, color: c.textMuted),
+                        const SizedBox(height: 8),
+                        Text('Toca para seleccionar una imagen',
+                            style:
+                                TextStyle(color: c.textSecond, fontSize: 12.5)),
+                      ]),
           ),
         ),
         const SizedBox(height: 16),
-        ClayButton(label: 'Analizar', icon: Icons.image_search_rounded, loading: _cargando,
+        ClayButton(
+            label: 'Analizar',
+            icon: Icons.image_search_rounded,
+            loading: _cargando,
             onPressed: _bytes == null ? null : _analizar),
         if (_error != null) ...[
           const SizedBox(height: 14),
-          Text(_error!, style: TextStyle(color: c.brick, fontSize: 12.5), textAlign: TextAlign.center),
+          Text(_error!,
+              style: TextStyle(color: c.brick, fontSize: 12.5),
+              textAlign: TextAlign.center),
         ],
         if (_resultado != null) ...[
           const SizedBox(height: 20),
@@ -100,13 +123,15 @@ class _Resultado extends StatelessWidget {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: c.brickSoft, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+              color: c.brickSoft, borderRadius: BorderRadius.circular(12)),
           child: Text('No pudimos identificar el partido en la imagen.',
               style: TextStyle(color: c.brick, fontSize: 12.5)),
         ),
         if (resultado.avisos.isNotEmpty) ...[
           const SizedBox(height: 10),
-          for (final a in resultado.avisos) Text('· $a', style: TextStyle(fontSize: 12, color: c.textSecond)),
+          for (final a in resultado.avisos)
+            Text('· $a', style: TextStyle(fontSize: 12, color: c.textSecond)),
         ],
       ]);
     }
@@ -117,10 +142,15 @@ class _Resultado extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: c.ledgerSoft, borderRadius: BorderRadius.circular(12)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                children: [for (final a in resultado.avisos)
-                  Text(a, style: TextStyle(fontSize: 12, color: c.ledger, height: 1.4))]),
+            decoration: BoxDecoration(
+                color: c.ledgerSoft, borderRadius: BorderRadius.circular(12)),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (final a in resultado.avisos)
+                Text(a,
+                    style:
+                        TextStyle(fontSize: 12, color: c.ledger, height: 1.4))
+            ]),
           ),
         ),
       if (resultado.probCombinadaEstimada != null)
@@ -128,8 +158,10 @@ class _Resultado extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: ClayContainer(
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text('Probabilidad combinada estimada: ', style: TextStyle(fontSize: 12.5, color: c.textSecond)),
-              Text('${(resultado.probCombinadaEstimada! * 100).toStringAsFixed(1)}%',
+              Text('Probabilidad combinada estimada: ',
+                  style: TextStyle(fontSize: 12.5, color: c.textSecond)),
+              Text(
+                  '${(resultado.probCombinadaEstimada! * 100).toStringAsFixed(1)}%',
                   style: AppTheme.score(c, size: 14).copyWith(color: c.pitch)),
             ]),
           ),
@@ -164,18 +196,25 @@ class _SeleccionRow extends StatelessWidget {
       ),
       child: Row(children: [
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(seleccion.nombreLegible, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: c.text)),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(seleccion.nombreLegible,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w500, color: c.text)),
             if (!seleccion.reconocido)
-              Text(seleccion.aviso ?? 'No se pudo calcular', style: TextStyle(fontSize: 11.5, color: c.textMuted))
+              Text(seleccion.aviso ?? 'No se pudo calcular',
+                  style: TextStyle(fontSize: 11.5, color: c.textMuted))
             else if (seleccion.recomendacion != null)
               Text(seleccion.recomendacion!,
-                  style: TextStyle(fontSize: 11.5, color: valueBet ? c.pitch : c.textSecond)),
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      color: valueBet ? c.pitch : c.textSecond)),
           ]),
         ),
         if (seleccion.probabilidad != null)
           Text('${(seleccion.probabilidad! * 100).toStringAsFixed(0)}%',
-              style: AppTheme.score(c, size: 15).copyWith(color: valueBet ? c.pitch : c.text)),
+              style: AppTheme.score(c, size: 15)
+                  .copyWith(color: valueBet ? c.pitch : c.text)),
       ]),
     );
   }

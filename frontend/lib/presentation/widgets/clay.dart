@@ -24,7 +24,8 @@ class ClayContainer extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.surfaceClay,
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: clayShadow(c),
+        border: Border.all(color: c.line),
+        boxShadow: clayShadow(c, strength: 0.35),
       ),
       child: child,
     );
@@ -36,7 +37,12 @@ class ClayButton extends StatelessWidget {
   final IconData? icon;
   final VoidCallback? onPressed;
   final bool loading;
-  const ClayButton({super.key, required this.label, this.icon, this.onPressed, this.loading = false});
+  const ClayButton(
+      {super.key,
+      required this.label,
+      this.icon,
+      this.onPressed,
+      this.loading = false});
 
   @override
   Widget build(BuildContext context) {
@@ -54,18 +60,27 @@ class ClayButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 13),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              boxShadow: clayShadow(c, strength: 0.6),
+              boxShadow: clayShadow(c, strength: 0.3),
             ),
             child: Center(
               child: loading
                   ? SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: c.bg))
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: c.bg))
                   : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (icon != null) ...[Icon(icon, size: 17, color: c.bg), const SizedBox(width: 7)],
-                        Text(label, style: TextStyle(color: c.bg, fontSize: 13.5, fontWeight: FontWeight.w600)),
+                        if (icon != null) ...[
+                          Icon(icon, size: 17, color: c.bg),
+                          const SizedBox(width: 7)
+                        ],
+                        Text(label,
+                            style: TextStyle(
+                                color: c.bg,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
             ),

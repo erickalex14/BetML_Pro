@@ -25,7 +25,7 @@ import logging
 from datetime import datetime, timezone
 from backend.db.database import SessionLocal
 from backend.db.modelos import Partido
-from backend.pipeline.config import ahora_partidos
+from backend.pipeline.config import ahora_partidos, fecha_hoy_partidos, rango_utc_dia_partidos
 from backend.pipeline.job_partidos_en_vivo import _ESTADOS_EN_VIVO
 
 log = logging.getLogger(__name__)
@@ -114,15 +114,13 @@ def _partidos_hoy_anclados(db) -> list:
     vivo: hace falta ver también los NS para enterarse de que
     arrancaron (antes de eso lo hacía job_partidos_en_vivo con
     API-Football, que se sacó para no gastar cuota)."""
-    ahora = ahora_partidos()
-    inicio = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
-    from datetime import timedelta
+    inicio, fin = rango_utc_dia_partidos(fecha_hoy_partidos())
     return (
         db.query(Partido)
         .filter(
             Partido.sofascore_id.isnot(None),
             Partido.fecha >= inicio,
-            Partido.fecha < inicio + timedelta(days=1),
+            Partido.fecha < fin,
         )
         .all()
     )
@@ -274,7 +272,9 @@ def correr_job_sofascore_en_vivo():
         # de guardarlas quedaban pendientes hasta el job de las 01:30.
         if actualizados or stats_actualizadas:
             from backend.pipeline.job_cerrar_predicciones import correr_job_cerrar_predicciones
+            from backend.services.cache import invalidar_cache_dia
             correr_job_cerrar_predicciones()
+            invalidar_cache_dia(db)
 
         log.info(f"Stats de partido actualizadas: {stats_actualizadas} — planteles actualizados: {jugadores_actualizados}")
     finally:

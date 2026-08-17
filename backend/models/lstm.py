@@ -27,12 +27,12 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
-from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 
 from backend.db.database import SessionLocal
 from backend.db.modelos import Partido
 from backend.features.calculador import obtener_secuencia_equipo, N_DIMS_SECUENCIA
+from backend.models.validacion import division_temporal, brier_confianza_elegida
 
 logging.basicConfig(
     level=logging.INFO,
@@ -162,8 +162,9 @@ def entrenar_lstm(df: pd.DataFrame, epochs: int = 40, batch_size: int = 64,
     log.info("=" * 55)
     log.info("  Construyendo secuencias temporales (consulta BD por partido)...")
 
-    df_train, df_val = train_test_split(
-        df, test_size=0.2, random_state=42, stratify=df["resultado"])
+    df_train, df_val = division_temporal(df)
+    log.info(f"  Corte temporal: train hasta {df_train['fecha'].max()} | "
+             f"validación desde {df_val['fecha'].min()}")
 
     ds_train = _DatasetSecuencias(df_train)
     ds_val = _DatasetSecuencias(df_val)
@@ -231,15 +232,27 @@ def entrenar_lstm(df: pd.DataFrame, epochs: int = 40, batch_size: int = 64,
                 break
 
     modelo.load_state_dict(mejor_estado)
+    probas_val, y_val = [], []
+    modelo.eval()
+    with torch.no_grad():
+        for batch in dl_val:
+            logits, _ = modelo(batch["seq_local"], batch["len_local"],
+                               batch["seq_visit"], batch["len_visit"])
+            probas_val.append(torch.softmax(logits, dim=1).numpy())
+            y_val.append(batch["y"].numpy())
+    val_brier = brier_confianza_elegida(
+        np.concatenate(y_val), np.vstack(probas_val))
     log.info(f"  Mejor val_loss: {mejor_val_loss:.4f} | val_acc: {mejor_acc*100:.2f}%")
 
-    return {"modelo": modelo, "val_loss": mejor_val_loss, "val_acc": mejor_acc}
+    return {"modelo": modelo, "val_loss": mejor_val_loss,
+            "val_acc": mejor_acc, "val_brier": val_brier}
 
 
 def guardar_lstm(resultado: dict, ruta: Path = LSTM_PATH):
     torch.save({
         "state_dict": resultado["modelo"].state_dict(),
         "val_acc": resultado["val_acc"],
+        "val_brier": resultado.get("val_brier"),
     }, ruta)
     log.info(f"LSTM guardado: {ruta}")
 
@@ -252,7 +265,8 @@ def cargar_lstm(ruta: Path = LSTM_PATH):
     modelo = RedLSTM()
     modelo.load_state_dict(checkpoint["state_dict"])
     modelo.eval()
-    return {"modelo": modelo, "val_acc": checkpoint["val_acc"]}
+    return {"modelo": modelo, "val_acc": checkpoint["val_acc"],
+            "val_brier": checkpoint.get("val_brier")}
 
 
 def predecir_lstm(cargado: dict, db, equipo_local_id: int, equipo_visit_id: int,

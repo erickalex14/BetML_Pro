@@ -110,13 +110,13 @@ def main():
 
     def ejecutar(cmd):
         print(f"\n$ {cmd}")
-        _, stdout, stderr = cliente.exec_command(cmd)
+        # Un solo stream: docker build escribe mucho en stderr. Leer stdout
+        # completo antes de stderr puede llenar el buffer remoto y bloquear
+        # el deploy aun cuando la imagen ya terminó de construirse.
+        _, stdout, _ = cliente.exec_command(f"{cmd} 2>&1")
         salida = stdout.read().decode("utf-8", errors="ignore")
-        error = stderr.read().decode("utf-8", errors="ignore")
         codigo = stdout.channel.recv_exit_status()
         print(salida, end="")
-        if error.strip():
-            print(f"[stderr] {error.strip()}")
         if codigo:
             raise RuntimeError(f"Comando remoto falló ({codigo}): {cmd}")
 

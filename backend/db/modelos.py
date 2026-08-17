@@ -1,8 +1,9 @@
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Float,
-    DateTime, Date, Boolean, ForeignKey, Text
+    DateTime, Date, Boolean, ForeignKey, Text, Index, JSON
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, backref
 from backend.db.database import Base
 
@@ -40,13 +41,17 @@ class Equipo(Base):
 
 class Partido(Base):
     __tablename__ = "partidos"
+    __table_args__ = (
+        Index("ix_partidos_equipo_local_fecha", "equipo_local_id", "fecha"),
+        Index("ix_partidos_equipo_visit_fecha", "equipo_visit_id", "fecha"),
+    )
 
     id              = Column(Integer, primary_key=True)
-    liga_id         = Column(Integer, ForeignKey("ligas.id"), nullable=False)
-    equipo_local_id = Column(Integer, ForeignKey("equipos.id"), nullable=False)
-    equipo_visit_id = Column(Integer, ForeignKey("equipos.id"), nullable=False)
-    fecha           = Column(DateTime, nullable=False)
-    estado          = Column(String(10), default="NS")
+    liga_id         = Column(Integer, ForeignKey("ligas.id"), nullable=False, index=True)
+    equipo_local_id = Column(Integer, ForeignKey("equipos.id"), nullable=False, index=True)
+    equipo_visit_id = Column(Integer, ForeignKey("equipos.id"), nullable=False, index=True)
+    fecha           = Column(DateTime, nullable=False, index=True)
+    estado          = Column(String(10), default="NS", index=True)
     minuto          = Column(Integer, nullable=True)  # elapsed de API-Football, solo mientras está en vivo
     goles_local     = Column(Integer, nullable=True)
     goles_visitante = Column(Integer, nullable=True)
@@ -116,7 +121,7 @@ class Prediccion(Base):
 
     id             = Column(Integer, primary_key=True, autoincrement=True)
     usuario_id     = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
-    partido_id     = Column(Integer, ForeignKey("partidos.id"))
+    partido_id     = Column(Integer, ForeignKey("partidos.id"), index=True)
     mercado        = Column(String(50))
     prediccion     = Column(String(50))
     probabilidad   = Column(Float)
@@ -203,9 +208,9 @@ class EstadisticaJugador(Base):
     __tablename__ = "estadisticas_jugador"
 
     id                   = Column(Integer, primary_key=True, autoincrement=True)
-    partido_id           = Column(Integer, ForeignKey("partidos.id"))
-    equipo_id            = Column(Integer, ForeignKey("equipos.id"))
-    sofascore_jugador_id = Column(Integer, nullable=False)
+    partido_id           = Column(Integer, ForeignKey("partidos.id"), index=True)
+    equipo_id            = Column(Integer, ForeignKey("equipos.id"), index=True)
+    sofascore_jugador_id = Column(Integer, nullable=False, index=True)
     nombre               = Column(String(100), nullable=False)
     posicion             = Column(String(20), nullable=True)
     es_local             = Column(Boolean, nullable=False)
@@ -293,12 +298,37 @@ class Usuario(Base):
 
     id             = Column(Integer, primary_key=True, autoincrement=True)
     email          = Column(String(255), nullable=False, unique=True)
-    password_hash  = Column(String(255), nullable=False)
+    password_hash  = Column(String(255), nullable=True)
+    google_sub     = Column(String(64), nullable=True, unique=True)
+    nombre         = Column(String(120), nullable=True)
+    avatar_url     = Column(String(500), nullable=True)
+    email_verificado = Column(Boolean, default=False, nullable=False)
+    ultimo_login   = Column(DateTime, nullable=True)
     activo         = Column(Boolean, default=True)
     creado_en      = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<Usuario {self.email}>"
+
+
+class SesionRefresh(Base):
+    __tablename__ = "sesiones_refresh"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True)
+    expira_en  = Column(DateTime, nullable=False)
+    revocada   = Column(Boolean, default=False, nullable=False)
+    creado_en  = Column(DateTime, default=datetime.utcnow, nullable=False)
+    user_agent = Column(String(500), nullable=True)
+
+
+class CacheJson(Base):
+    __tablename__ = "cache_json"
+
+    clave      = Column(String(255), primary_key=True)
+    payload    = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    expira_en  = Column(DateTime, nullable=False, index=True)
 
 
 class Odds(Base):
@@ -309,7 +339,7 @@ class Odds(Base):
     __tablename__ = "odds"
 
     id             = Column(Integer, primary_key=True, autoincrement=True)
-    partido_id     = Column(Integer, ForeignKey("partidos.id"), nullable=False)
+    partido_id     = Column(Integer, ForeignKey("partidos.id"), nullable=False, index=True)
     bookmaker      = Column(String(50), nullable=False)
     mercado        = Column(String(50), nullable=False)
     valor          = Column(Float, nullable=False)

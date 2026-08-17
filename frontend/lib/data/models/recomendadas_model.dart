@@ -5,7 +5,11 @@ class ApuestaIndividualModel extends ApuestaIndividual {
     required super.partidoId,
     required super.local,
     required super.visitante,
+    super.localLogo,
+    super.visitanteLogo,
     required super.liga,
+    super.ligaId,
+    super.hora,
     required super.mercado,
     required super.probabilidad,
     required super.cuota,
@@ -21,7 +25,11 @@ class ApuestaIndividualModel extends ApuestaIndividual {
       partidoId: json['partido_id'] ?? 0,
       local: json['local'] ?? '',
       visitante: json['visitante'] ?? '',
+      localLogo: json['local_logo'] as String?,
+      visitanteLogo: json['visitante_logo'] as String?,
       liga: json['liga'] ?? '',
+      ligaId: json['liga_id'] as int?,
+      hora: json['hora'] != null ? DateTime.tryParse(json['hora']) : null,
       mercado: json['mercado'] ?? '',
       probabilidad: (json['probabilidad'] ?? 0.0).toDouble(),
       cuota: (json['cuota'] ?? 0.0).toDouble(),
@@ -50,6 +58,39 @@ class MercadoCombinadaModel extends MercadoCombinada {
       stakePct: (json['stake_pct'] ?? 0.0).toDouble(),
     );
   }
+}
+
+class PronosticoJugadorModel extends PronosticoJugador {
+  const PronosticoJugadorModel({
+    required super.partidoId,
+    required super.local,
+    required super.visitante,
+    super.localLogo,
+    super.visitanteLogo,
+    required super.liga,
+    required super.clave,
+    required super.mercado,
+    required super.jugador,
+    required super.probabilidad,
+    required super.nPartidosHistorial,
+    super.acerto,
+  });
+
+  factory PronosticoJugadorModel.fromJson(Map<String, dynamic> json) =>
+      PronosticoJugadorModel(
+        partidoId: json['partido_id'] ?? 0,
+        local: json['local'] ?? '',
+        visitante: json['visitante'] ?? '',
+        localLogo: json['local_logo'] as String?,
+        visitanteLogo: json['visitante_logo'] as String?,
+        liga: json['liga'] ?? '',
+        clave: json['clave'] ?? '',
+        mercado: json['mercado'] ?? '',
+        jugador: json['jugador'] ?? '',
+        probabilidad: (json['probabilidad'] ?? 0).toDouble(),
+        nPartidosHistorial: json['n_partidos_historial'] ?? 0,
+        acerto: json['acerto'] as bool?,
+      );
 }
 
 class CombinadaMismoPartidoModel extends CombinadaMismoPartido {
@@ -128,6 +169,8 @@ class RecomendadasModel extends Recomendadas {
     required super.fecha,
     required super.individualesFijas,
     required super.individualesSonadoras,
+    required super.jugadoresFijas,
+    required super.jugadoresSonadoras,
     required super.combinadasFijas,
     required super.combinadasSonadoras,
     required super.parlaysFijas,
@@ -136,15 +179,27 @@ class RecomendadasModel extends Recomendadas {
 
   factory RecomendadasModel.fromJson(Map<String, dynamic> json) {
     List<ApuestaIndividualModel> individuales(String bucket) =>
-        ((json['apuestas_individuales'] as Map<String, dynamic>? ?? {})[bucket] as List? ?? [])
+        ((json['apuestas_individuales'] as Map<String, dynamic>? ?? {})[bucket]
+                    as List? ??
+                [])
             .map((a) => ApuestaIndividualModel.fromJson(a))
             .toList();
     List<CombinadaMismoPartidoModel> combinadas(String bucket) =>
-        ((json['combinadas_mismo_partido'] as Map<String, dynamic>? ?? {})[bucket] as List? ?? [])
+        ((json['combinadas_mismo_partido'] as Map<String, dynamic>? ??
+                    {})[bucket] as List? ??
+                [])
             .map((c) => CombinadaMismoPartidoModel.fromJson(c))
             .toList();
+    List<PronosticoJugadorModel> jugadores(String bucket) =>
+        ((json['mercados_jugadores'] as Map<String, dynamic>? ?? {})[bucket]
+                    as List? ??
+                [])
+            .map((a) => PronosticoJugadorModel.fromJson(a))
+            .toList();
     List<ParlaySugeridoModel> parlays(String bucket) =>
-        ((json['parlays_sugeridos'] as Map<String, dynamic>? ?? {})[bucket] as List? ?? [])
+        ((json['parlays_sugeridos'] as Map<String, dynamic>? ?? {})[bucket]
+                    as List? ??
+                [])
             .map((p) => ParlaySugeridoModel.fromJson(p))
             .toList();
 
@@ -152,6 +207,8 @@ class RecomendadasModel extends Recomendadas {
       fecha: json['fecha'] ?? '',
       individualesFijas: individuales('fijas'),
       individualesSonadoras: individuales('sonadoras'),
+      jugadoresFijas: jugadores('fijas'),
+      jugadoresSonadoras: jugadores('sonadoras'),
       combinadasFijas: combinadas('fijas'),
       combinadasSonadoras: combinadas('sonadoras'),
       parlaysFijas: parlays('fijas'),
